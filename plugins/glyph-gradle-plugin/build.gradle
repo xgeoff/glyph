@@ -1,0 +1,24 @@
+plugins {
+    id 'groovy'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'java-test-fixtures'
+}
+
+
+gradlePlugin {
+    plugins {
+        glyphPlugin {
+            id = 'biz.digitalindustry.glyph'
+            implementationClass = 'biz.digitalindustry.glyph.GlyphPlugin'
+        }
+    }
+}
+
+dependencies {
+    implementation gradleApi()
+    implementation localGroovy()
+
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
+    testImplementation 'junit:junit:4.13.2'
+}
