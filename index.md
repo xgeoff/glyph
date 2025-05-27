@@ -7,7 +7,7 @@ title: Welcome
 
 ## Documentation Index
 
-- [Overview](readme.md)
+- [Overview](README.md)
 - [Project Structure Approach](docs/project-structure-approach.md)
 - [Variable Declaration Model](docs/variable-declaration-model.md)
 - [Primitive Type Mapping](docs/primitive-type-mapping.md)
