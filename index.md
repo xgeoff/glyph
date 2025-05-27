@@ -3,6 +3,11 @@ layout: default
 title: Welcome
 ---
 
-# Hello World
+# Welcome to the Glyph programming language
 
-Welcome to my GitHub Pages site using the Minimal theme.
+## Documentation Index
+
+- [Overview](docs/readme.md)
+- [Project Structure Approach](docs/project-structure-approach.md)
+- [Variable Declaration Model](docs/variable-declaration-model.md)
+- [Primitive Type Mapping](docs/primitive-type-mapping.md)
