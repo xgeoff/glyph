@@ -18,11 +18,13 @@ Glyph is built to:
 * 🔁 **Support optional JVM output** for compatibility with Java ecosystems.
 * 📦 **Structure large projects cleanly** using packages and namespaces.
 * 🧰 **Use Gradle tooling** for project builds, multi-target compilation, and deployment workflows.
-
+* 🧭 **Support both functional and object-style programming** with first-class functions, records, and expressive control flow.
 ---
 
 ## 🔧 Language Highlights
 
+* **Favor composition over inheritance** encouraging reusable functions and clean data modeling without complex hierarchies
+* While Glyph supports **object-style data modeling and functional programming**, it deliberately avoids traditional object-oriented inheritance and polymorphism—favoring simplicity and WASM-compatibility.
 * **Explicit variable declarations** (no inference):
 
   ```glyph
