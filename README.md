@@ -1,7 +1,3 @@
-Here’s a draft overview suitable for the README landing page of your Glyph project:
-
----
-
 # 🌟 Glyph Programming Language
 
 **Glyph** is a modern, statically typed programming language designed for seamless compilation to both **WebAssembly (WASM)** and the **Java Virtual Machine (JVM)**. It blends the expressive syntax of Groovy and Kotlin with the performance-conscious mindset of systems languages—optimized for cloud-native, serverless, and edge-computing use cases.
