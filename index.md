@@ -19,6 +19,7 @@ Glyph is built to:
 * 📦 **Structure large projects cleanly** using packages and namespaces.
 * 🧰 **Use Gradle tooling** for project builds, multi-target compilation, and deployment workflows.
 * 🧪 **Support both functional and object-style programming** with first-class functions, records, and expressive control flow.
+
 ---
 
 ## 🔧 Language Highlights
