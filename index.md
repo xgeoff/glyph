@@ -24,7 +24,9 @@ Glyph is built to:
 ## 🔧 Language Highlights
 
 * **Favor composition over inheritance** encouraging reusable functions and clean data modeling without complex hierarchies
+
 * While Glyph supports **object-style data modeling and functional programming**, it deliberately avoids traditional object-oriented inheritance and polymorphism—favoring simplicity and WASM-compatibility.
+
 * **Explicit variable declarations** (no inference):
 
   ```glyph
