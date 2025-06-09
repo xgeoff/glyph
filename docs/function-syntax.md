@@ -145,3 +145,90 @@ type          ::= base_type ["?"]    // supports nullability suffix
 | Return behavior  | Last expr or `return` | Same                 |
 | Function syntax  | `fun name(): Type`    | `fun Type name(...)` |
 
+
+## ✅ `async` Keyword — Asynchronous Function Support
+
+Glyph uses the `async` keyword to define functions that perform asynchronous operations and must be resolved using `await`.
+
+---
+
+### 🔹 Function Declaration Syntax
+
+```glyph
+fun async <return_type> <function_name>(<params>) {
+  // function body
+}
+```
+
+* `async` appears **before the return type**
+* The return type reflects the **actual result** of the function (not a future)
+* The function must be **invoked with `await`** to access its result
+
+---
+
+### 🔸 Example
+
+```glyph
+fun async HttpResponse fetchData(string url) {
+  val HttpRequest req = HttpRequest {
+    method = "GET"
+    url = url
+    headers = [:]
+    timeout = 3000
+  }
+
+  return await network.http.request(req)
+}
+```
+
+```glyph
+val HttpResponse result = await fetchData("https://api.site.com")
+println(result.status)
+```
+
+---
+
+### 🔸 Rules
+
+| Rule                              | Description                                              |
+| --------------------------------- | -------------------------------------------------------- |
+| ✅ `await` required                | You must `await` the result of an `async` function call  |
+| ❌ Cannot `await` a non-async func | Compile error if `await` is used on a non-async function |
+| ✅ `async` required to suspend     | Only `async` functions can use `await` internally        |
+| ✅ Return type is not wrapped      | The declared type is the resolved value, not a future    |
+
+---
+
+### 🔹 Common Pattern
+
+```glyph
+fun async string loadGreeting() {
+  val response = await filesystem.read.request("/tmp/greeting.txt")
+  return response.content ?: "Hello"
+}
+
+val message = await loadGreeting()
+println(message)
+```
+
+---
+
+### 🔸 Syntax Recap (Grammar)
+
+```ebnf
+function_decl ::= "fun" ["async"] type IDENT "(" param_list? ")" block
+```
+
+---
+
+### ✅ Summary
+
+| Keyword | Applies To | Purpose                              |
+| ------- | ---------- | ------------------------------------ |
+| `async` | Function   | Declares an asynchronous function    |
+| `await` | Expression | Resolves the result of an async call |
+
+---
+
+This pattern provides **clean async flow** in Glyph without callbacks, promises, or explicit future types — making asynchronous programming **safe, readable, and first-class**.
+
