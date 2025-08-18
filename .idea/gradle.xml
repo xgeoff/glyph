@@ -1,14 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/../grimoire" name="grimoire">
+                <projects>
+                  <project path="$PROJECT_DIR$/../grimoire" />
+                  <project path="$PROJECT_DIR$/../grimoire/plugin" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/plugins" />
             <option value="$PROJECT_DIR$/plugins/glyph-gradle-plugin" />
+            <option value="$PROJECT_DIR$/../grimoire" />
+            <option value="$PROJECT_DIR$/../grimoire/plugin" />
           </set>
         </option>
       </GradleProjectSettings>

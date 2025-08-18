@@ -1,0 +1,13 @@
+{{!-- sidebarItem.hbs --}}
+{{#if (eq type "directory")}}
+    <li class="folder">
+        <span>{{name}}</span>
+        <ul>
+            {{#each children}}
+                {{> sidebarItem this}}
+            {{/each}}
+        </ul>
+    </li>
+{{else if (eq type "file")}}
+    <li class="file"><a href="/{{path}}">{{name}}</a></li>
+{{/if}}

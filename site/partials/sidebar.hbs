@@ -1,0 +1,8 @@
+{{!-- sidebar.hbs --}}
+<nav class="sidebar">
+    <ul>
+        {{#each (Pages)}}
+            {{> sidebarItem this}}
+        {{/each}}
+    </ul>
+</nav>

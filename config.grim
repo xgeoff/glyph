@@ -1,0 +1,4 @@
+title = "Grimoire Site"
+baseUrl = "/"
+outputDir = "public"
+sourceDir = "site"

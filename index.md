@@ -129,6 +129,6 @@ Stay tuned as we move toward alpha release!
 
 ## Documentation Index
 
-- [Project Structure Approach](docs/project-structure-approach.md)
-- [Variable Declaration Model](docs/variable-declaration-model.md)
-- [Primitive Type Mapping](docs/primitive-type-mapping.md)
+- [Project Structure Approach](site/pages/project-structure-approach.md)
+- [Variable Declaration Model](site/pages/variable-declaration-model.md)
+- [Primitive Type Mapping](site/pages/primitive-type-mapping.md)
