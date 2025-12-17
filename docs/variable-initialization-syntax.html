@@ -1,0 +1,113 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Variable Initialization Syntax</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Your Proposed Syntax: No Colons, No Inference</h2>
+<pre><code class="language-glyph">val int myvariable = 1
+var string mystringvariable = "hello"
+string myotherstringvariable = "world"
+</code></pre>
+<h3>Structure:</h3>
+<pre><code>[mutability] &lt;type&gt; &lt;name&gt; = &lt;value&gt;
+</code></pre>
+<table>
+<thead>
+<tr><th>Element</th><th>Required?</th><th>Default</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>val</code>/<code>var</code></td><td>Optional</td><td>defaults to <code>var</code></td><td>Controls mutability</td></tr>
+<tr><td><code>&lt;type&gt;</code></td><td>✅</td><td>must be explicit</td><td>No type inference — always specified</td></tr>
+<tr><td><code>&lt;name&gt;</code></td><td>✅</td><td>—</td><td>Variable identifier</td></tr>
+<tr><td><code>=</code></td><td>✅</td><td>—</td><td>Always requires initialization</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🧠 Advantages of This Model</h2>
+<ul>
+<li>✅ <strong>Cleaner to read</strong>: No <code>:</code> or ambiguity between type and name</li>
+<li>✅ <strong>Easier to parse visually and syntactically</strong></li>
+<li>✅ <strong>Consistent structure</strong>: Always <code>mutability type name = value</code></li>
+<li>✅ <strong>No inference = no ambiguity</strong>: Explicit typing is easier to compile and reason about</li>
+<li>✅ <strong>Optional mutability keyword</strong> keeps things tidy</li>
+</ul>
+<hr />
+<h2>✍️ Updated Grammar (EBNF-style)</h2>
+<pre><code class="language-ebnf">declaration ::= ( "val" | "var" )? type IDENTIFIER "=" expression
+</code></pre>
+<p>Examples:</p>
+<pre><code class="language-glyph">val int count = 42
+float temperature = 98.6
+const string greeting = "hello"
+</code></pre>
+<hr />
+<h2>❌ What This Model Intentionally <em>Excludes</em></h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Why it's excluded</th></tr>
+</thead>
+<tbody>
+<tr><td>Type inference</td><td>Avoids ambiguity and complexity</td></tr>
+<tr><td>Type-colon (<code>:</code>) syntax</td><td>Too noisy, less visually clean</td></tr>
+<tr><td>Uninitialized variables</td><td>Forces explicit initialization</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🔄 Comparison to Other Languages</h2>
+<table>
+<thead>
+<tr><th>Language</th><th>Style</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td>Kotlin</td><td><code>val name: Type</code></td><td><code>val name: String = "hi"</code></td></tr>
+<tr><td>Go</td><td><code>var name Type</code></td><td><code>var x int = 5</code></td></tr>
+<tr><td>Glyph</td><td><code>val Type name</code></td><td><code>val int age = 30</code></td></tr>
+</tbody>
+</table>
+<p>You're choosing something closer to <strong>Go</strong>, but even more minimal — and with <strong>optional <code>val/var</code></strong>. That’s a great sweet spot.</p>
+<hr />
+<h2>✅ Summary: Final Glyph Variable Declaration Model</h2>
+<table>
+<thead>
+<tr><th>Syntax</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>val int x = 1</code></td><td>Immutable int</td></tr>
+<tr><td><code>var string name = "glyph"</code></td><td>Mutable string</td></tr>
+<tr><td><code>float temp = 72.5</code></td><td>Defaults to <code>var</code></td></tr>
+<tr><td><code>const double pi = 3.14159</code></td><td>Inlined at compile time</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

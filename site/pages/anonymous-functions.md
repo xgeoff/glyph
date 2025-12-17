@@ -1,3 +1,7 @@
+---
+title = "Anonymous Functions"
+layout = "default"
+---
 
 ## ✅ WASM Constraints: What We Can and Can’t Do
 
@@ -75,10 +79,10 @@ val f = fun int (int a, int b) { a + b }  // type of f is function from (int, in
 WASM translation would look like:
 
 ```wasm
-(type $add_fn (func (param i32 i32) (result i32)))
-(func $add (type $add_fn) ... )
-(global $f (ref func) (ref.func $add))
-(call_ref $f ...)
+(type \$add_fn (func (param i32 i32) (result i32)))
+(func \$add (type \$add_fn) ... )
+(global \$f (ref func) (ref.func \$add))
+(call_ref \$f ...)
 ```
 
 ---

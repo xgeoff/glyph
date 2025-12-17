@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Iteration: while & range</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Glyph <code>while</code> Loop — Final Design</h2>
+<h3>🔹 Syntax</h3>
+<pre><code class="language-glyph">while x &lt; 10 {
+  println x
+  x++
+}
+</code></pre>
+<h3>🔸 Key Features</h3>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>✅ No parentheses</td><td>Consistent with <code>if</code> and <code>match</code></td></tr>
+<tr><td>✅ Braces required</td><td>All blocks use <code>{}</code></td></tr>
+<tr><td>✅ Condition first</td><td>Pre-condition check before block runs</td></tr>
+<tr><td>✅ Mutable vars</td><td>Works with <code>var</code>-declared counters</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🔧 Grammar (EBNF-style)</h2>
+<pre><code class="language-ebnf">while_loop ::= "while" expression block
+</code></pre>
+<p>Where:</p>
+<ul>
+<li><code>expression</code> → boolean expression (e.g. <code>x &lt; 10</code>)</li>
+<li><code>block</code> → <code>{ ... }</code></li>
+</ul>
+<hr />
+<h2>🧾 Example</h2>
+<pre><code class="language-glyph">var int x = 0
+
+while x &lt; 5 {
+  println x
+  x++
+}
+</code></pre>
+<p>✅ Output:</p>
+<pre><code>0
+1
+2
+3
+4
+</code></pre>
+<hr />
+<h2>✅ Summary</h2>
+<table>
+<thead>
+<tr><th>Construct</th><th>Syntax Example</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>while</code></td><td><code>while condition { ... }</code></td><td>Pre-condition loop</td></tr>
+<tr><td><code>loop</code></td><td><code>loop { ... }</code> + <code>break</code></td><td>Infinite loop</td></tr>
+<tr><td><code>each</code></td><td><code>array.each { ... }</code></td><td>Iterate over collections</td></tr>
+<tr><td><code>withIndex</code></td><td><code>array.withIndex { it.index, it.value }</code></td><td>Indexed array iteration</td></tr>
+</tbody>
+</table>
+<h1>📚 Glyph Standard Library: <code>range</code> Function</h1>
+<hr />
+<h2>✅ Purpose</h2>
+<p>Produces an iterable numeric sequence that can be used with <code>.each</code> or <code>.withIndex</code>. Supports ascending and descending sequences, with an optional step.</p>
+<hr />
+<h2>✅ Syntax</h2>
+<pre><code class="language-glyph">range(start, end)
+range(start, end, step)
+</code></pre>
+<h3>🔸 All values must be <code>int</code>.</h3>
+<hr />
+<h2>✅ Type Signature</h2>
+<pre><code class="language-glyph">fun [int] range(int start, int end)
+fun [int] range(int start, int end, int step)
+</code></pre>
+<blockquote>
+<p>Returns a <strong>temporary iterable object</strong>, internally backed by an array or generator-like structure depending on compilation target.</p>
+</blockquote>
+<hr />
+<h2>🧾 Examples</h2>
+<h3>🔹 Count from 0 to 9 (exclusive)</h3>
+<pre><code class="language-glyph">range(0, 10).each {
+  print(it)
+}
+</code></pre>
+<h3>🔹 Count from 5 to 1 (descending)</h3>
+<pre><code class="language-glyph">range(5, 0, -1).each {
+  print(it)
+}
+</code></pre>
+<h3>🔹 Count by twos</h3>
+<pre><code class="language-glyph">range(0, 10, 2).each {
+  print(it)
+}
+</code></pre>
+<hr />
+<h2>🔧 Compiler Behavior</h2>
+<ul>
+<li>
+<p>Internally uses a <code>for</code>-loop-like expansion:</p>
+<pre><code class="language-glyph">fun [int] range(int start, int end, int step) {
+  val int len = abs((end - start) / step)
+  val [int] result = [int] (len)
+  var int i = 0
+  var int current = start
+  while (step &gt; 0 and current &lt; end) or (step &lt; 0 and current &gt; end) {
+    result[i] = current
+    i++
+    current = current + step
+  }
+  result
+}
+</code></pre>
+</li>
+</ul>
+<blockquote>
+<p>Implementation may be optimized or even compiler-builtin, but this sketch defines the <strong>semantic contract</strong>.</p>
+</blockquote>
+<hr />
+<h2>⚠️ Notes</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>Inclusive?</td><td>❌ No, <code>end</code> is <strong>exclusive</strong></td></tr>
+<tr><td>Negative step allowed</td><td>✅ Yes</td></tr>
+<tr><td>Step required?</td><td>❌ Optional (defaults to +1)</td></tr>
+<tr><td>Empty range behavior</td><td>Returns empty array</td></tr>
+<tr><td>Bounds type</td><td><code>int</code> only (MVP)</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Summary</h2>
+<table>
+<thead>
+<tr><th>Use Case</th><th>Syntax Example</th><th>Result</th></tr>
+</thead>
+<tbody>
+<tr><td>Ascending range</td><td><code>range(0, 5)</code></td><td><code>[0, 1, 2, 3, 4]</code></td></tr>
+<tr><td>Descending range</td><td><code>range(5, 0, -1)</code></td><td><code>[5, 4, 3, 2, 1]</code></td></tr>
+<tr><td>Custom step</td><td><code>range(0, 10, 2)</code></td><td><code>[0, 2, 4, 6, 8]</code></td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

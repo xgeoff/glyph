@@ -1,12 +1,13 @@
+
 <!DOCTYPE html>
 <html>
 <head>
     <!-- Basic Page Needs
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
     <meta charset="utf-8">
-    <title>{{title}}</title>
-    <meta name="description" content="">
-    <meta name="author" content="">
+    <title>${title}</title>
+    <meta name="description" content="${binding.hasVariable('myvariablename') ? myvariablename ?: '' : ''}">
+    <meta name="author" content="${author}">
 
     <!-- Mobile Specific Metas
     –––––––––––––––––––––––––––––––––––––––––––––––––– -->
@@ -14,7 +15,7 @@
 
     <!-- FONT
     –––––––––––––––––––––––––––––––––––––––––––––––––– -->
-    <link href="//fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
 
     <!-- CSS
     –––––––––––––––––––––––––––––––––––––––––––––––––– -->
@@ -28,10 +29,10 @@
 
 </head>
 <body>
-{{open "main" class="container"}}
-{{open "div" class="prose"}}
-    {{{content}}}
-{{close "div"}}
-{{close "main"}}
+<main class="container">
+    <div class="prose">
+${content}
+    </div>
+</main>
 </body>
 </html>

@@ -1,3 +1,7 @@
+---
+title = "Primitive Type Mapping"
+layout = "default"
+---
 
 ## ✅ Glyph Primitive Type Mapping
 

@@ -1,3 +1,7 @@
+---
+title = "Function Syntax"
+layout = "default"
+---
 
 ## ✅ Revised Glyph Function Syntax
 

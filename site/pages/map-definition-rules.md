@@ -1,4 +1,7 @@
-
+---
+title = "Map Definition Rules"
+layout = "default"
+---
 
 ## ✅ Revised Map Syntax Proposal (Groovy-Influenced)
 

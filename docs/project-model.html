@@ -1,0 +1,189 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Project Model</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Overview of Goals</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Design Direction</th></tr>
+</thead>
+<tbody>
+<tr><td>WASM Output</td><td>Lean, no-closure, WASM-first codegen</td></tr>
+<tr><td>JVM Output</td><td>Optional target via transpilation or IR layer</td></tr>
+<tr><td>Namespaces/Packages</td><td>Cleanly isolate modules and prevent collisions</td></tr>
+<tr><td>Gradle Tooling</td><td>Drives both targets via plugin</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Glyph Package / Namespace Model</h2>
+<h3>🔹 Syntax</h3>
+<p>We’ll use a <code>package</code> directive at the top of each file:</p>
+<pre><code class="language-glyph">package com.example.math
+
+fun int add(int a, int b) {
+  a + b
+}
+</code></pre>
+<p>This:</p>
+<ul>
+<li>Defines a <strong>module namespace</strong> (affects compiled symbols)</li>
+<li>Organizes imports (future use)</li>
+<li>Helps align JVM class structure</li>
+</ul>
+<h3>🔹 Import Syntax (planned)</h3>
+<pre><code class="language-glyph">import com.example.math.add
+
+fun void main() {
+  print(add(2, 3))
+}
+</code></pre>
+<hr />
+<h2>✅ Project Layout with Packages</h2>
+<pre><code>/glyph-math-project
+├── build.gradle
+├── settings.gradle
+├── src/
+│   ├── main/
+│   │   ├── glyph/
+│   │   │   └── com/
+│   │   │       └── example/
+│   │   │           ├── math/
+│   │   │           │   └── ops.gly      # package com.example.math
+│   │   │           └── app/
+│   │   │               └── main.gly     # package com.example.app
+│   └── test/
+│       └── glyph/
+│           └── com/example/app/main_test.gly
+├── build/
+│   ├── wasm/
+│   │   └── main.wasm
+│   ├── jvm/
+│   │   └── classes/
+│   │       └── com/example/...
+</code></pre>
+<hr />
+<h2>✅ WASM Output Design</h2>
+<h3>🔹 Compilation Strategy</h3>
+<ul>
+<li>
+<p>Each <code>fun</code> becomes a top-level WASM function.</p>
+</li>
+<li>
+<p>Namespaced via mangling or type index:</p>
+<ul>
+<li><code>com.example.math.add</code> → <code>$com_example_math_add</code></li>
+</ul>
+</li>
+<li>
+<p>Memory layout:</p>
+<ul>
+<li>Linear memory for arrays/maps</li>
+<li>Global offset tracking for malloc-like allocator</li>
+</ul>
+</li>
+</ul>
+<h3>🔹 Sample WAT</h3>
+<pre><code class="language-wasm">(module
+  (type $t0 (func (param i32 i32) (result i32)))
+  (func $com_example_math_add (type $t0)
+    local.get 0
+    local.get 1
+    i32.add
+  )
+  (func $main ...)
+  (export "main" (func $main))
+)
+</code></pre>
+<blockquote>
+<p>Strings, maps, records would use a minimal runtime with linear memory and offsets.</p>
+</blockquote>
+<hr />
+<h2>✅ JVM Output Design</h2>
+<h3>🔹 Transpilation Strategy</h3>
+<ul>
+<li>Glyph functions map to static methods</li>
+<li>Packages become class paths</li>
+<li><code>record</code> maps to Java/Kotlin-style data classes</li>
+<li>Function types → <code>java.util.function.*</code> or custom interfaces</li>
+</ul>
+<h3>🔹 Example JVM Output (from <code>com.example.math.ops.gly</code>)</h3>
+<pre><code class="language-java">package com.example.math;
+
+public class Ops {
+    public static int add(int a, int b) {
+        return a + b;
+    }
+}
+</code></pre>
+<h3>🔹 Function Types in JVM</h3>
+<pre><code class="language-java">import java.util.function.BiFunction;
+
+BiFunction&lt;Integer, Integer, Integer&gt; add = Ops::add;
+</code></pre>
+<p>Or generate:</p>
+<pre><code class="language-java">@FunctionalInterface
+public interface IntBinary {
+    int apply(int a, int b);
+}
+</code></pre>
+<hr />
+<h2>✅ Compiler Targets and Flags</h2>
+<table>
+<thead>
+<tr><th>Target</th><th>Output</th><th>Command Example</th></tr>
+</thead>
+<tbody>
+<tr><td>WASM</td><td><code>.wasm</code>, <code>.wat</code></td><td><code>glyphc --target=wasm src/main.glyph</code></td></tr>
+<tr><td>JVM</td><td><code>.class</code>, <code>.jar</code>, source</td><td><code>glyphc --target=jvm src/main.glyph</code></td></tr>
+<tr><td>IR</td><td>Optional <code>.ir.json</code></td><td>For debugging, transpilation, or plugins</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🧾 Summary of Package + Output Model</h2>
+<table>
+<thead>
+<tr><th>Component</th><th>Glyph Example</th></tr>
+</thead>
+<tbody>
+<tr><td>Package</td><td><code>package com.example.util</code></td></tr>
+<tr><td>File Path</td><td><code>src/glyph/com/example/util/tools.gly</code></td></tr>
+<tr><td>WASM Func Name</td><td><code>$com_example_util_add</code></td></tr>
+<tr><td>JVM Class Output</td><td><code>com.example.util.Tools</code></td></tr>
+<tr><td>Function Types</td><td><code>type Binary = fun(int, int): int</code></td></tr>
+<tr><td>Gradle Targets</td><td>WASM (<code>main.wasm</code>), JVM (<code>.class</code>, <code>.jar</code>)</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

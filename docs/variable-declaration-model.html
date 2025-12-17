@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Variable Declaration Model</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Glyph Variable Declaration Model</h2>
+<h3>1. <strong>Declaration Keywords</strong></h3>
+<table>
+<thead>
+<tr><th>Keyword</th><th>Mutability</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>val</code></td><td>Immutable</td><td>Assigned once, like a final variable</td></tr>
+<tr><td><code>var</code></td><td>Mutable</td><td>Reassignable</td></tr>
+<tr><td><code>const</code></td><td>Compile-time constant</td><td>Inlined at compile time, no memory allocation</td></tr>
+</tbody>
+</table>
+<h3>2. <strong>Default Behavior</strong></h3>
+<p>If no keyword is specified → treat it as <code>var</code></p>
+<pre><code class="language-glyph">x = 5  // Equivalent to: var x = 5
+</code></pre>
+<hr />
+<h2>🧾 Examples</h2>
+<h3>Explicit Declaration</h3>
+<pre><code class="language-glyph">val greeting: string = "hello"
+var counter: int = 0
+const pi: double = 3.14159
+</code></pre>
+<h3>Inferred Type</h3>
+<pre><code class="language-glyph">val name = "Glyph"
+var score = 42
+const threshold = 1000
+</code></pre>
+<h3>Implicit <code>var</code></h3>
+<pre><code class="language-glyph">result = true      // parsed as: var result = true
+</code></pre>
+<hr />
+<h2>🧠 Internal Representation (IR / AST)</h2>
+<p>Each variable declaration gets a flag:</p>
+<pre><code class="language-kotlin">enum class Mutability {
+  CONST, VAL, VAR
+}
+
+data class VariableDecl(
+  name: String,
+  type: Type?,          // optional, for inference
+  value: Expr,
+  mutability: Mutability
+)
+</code></pre>
+<hr />
+<h2>🛠 Compiler Behavior by Type</h2>
+<h3><code>var</code>:</h3>
+<ul>
+<li>Allocated in memory (stack or linear heap)</li>
+<li>Value can be updated with <code>set_local</code> or memory <code>store</code></li>
+<li>Default</li>
+</ul>
+<h3><code>val</code>:</h3>
+<ul>
+<li>Allocated in memory</li>
+<li>Reassignment triggers compile error</li>
+<li>Accessed like <code>var</code></li>
+</ul>
+<h3><code>const</code>:</h3>
+<ul>
+<li>
+<p><strong>No allocation</strong></p>
+</li>
+<li>
+<p>Value is inlined at all usage points (like <code>#define</code> or <code>constexpr</code>)</p>
+</li>
+<li>
+<p>Expression must be constant-evaluable at compile time</p>
+<ul>
+<li>literals</li>
+<li>static math</li>
+<li>string literals</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>✳️ Syntax Grammar</h2>
+<pre><code class="language-ebnf">declaration ::= ( "const" | "val" | "var" )? IDENTIFIER [ ":" type ] "=" expression
+</code></pre>
+<hr />
+<h2>🧪 Future Considerations</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Support?</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Shadowing</td><td>Optional</td><td>Allow inner scope to reuse name</td></tr>
+<tr><td>Block immutability</td><td>No</td><td>Per-variable only</td></tr>
+<tr><td>Top-level const folding</td><td>✅</td><td>For things like <code>const VERSION = "1.0"</code></td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Summary</h2>
+<table>
+<thead>
+<tr><th>Keyword</th><th>Mutability</th><th>In Memory?</th><th>Inlined?</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>const</code></td><td>Immutable</td><td>❌</td><td>✅</td><td><code>const PI = 3.14</code></td></tr>
+<tr><td><code>val</code></td><td>Immutable</td><td>✅</td><td>❌</td><td><code>val name = "Glyph"</code></td></tr>
+<tr><td><code>var</code></td><td>Mutable</td><td>✅</td><td>❌</td><td><code>var counter = 0</code></td></tr>
+<tr><td><em>(none)</em></td><td>Mutable</td><td>✅</td><td>❌</td><td><code>flag = true</code></td></tr>
+</tbody>
+</table>
+<hr />
+
+    </div>
+</main>
+</body>
+</html>

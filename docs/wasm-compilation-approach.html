@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>WASM Compilation Approach</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ WASM Compilation Approach in Glyph</h2>
+<h3>🔹 <strong>One Final <code>.wasm</code> per Project</strong> ✅ <em>Recommended for Deployment</em></h3>
+<ul>
+<li>
+<p>All <code>.gly</code> files in all packages are compiled together into <strong>one unified <code>.wasm</code> module</strong>.</p>
+</li>
+<li>
+<p>Compiler:</p>
+<ul>
+<li>Resolves all symbols across files</li>
+<li>Flattens to a single module with all exported functions/types/memory</li>
+</ul>
+</li>
+</ul>
+<p>✅ This is what <strong>serverless platforms expect</strong>.</p>
+<hr />
+<h2>🔧 What Serverless Platforms Expect (Cloudflare, Fastly, etc.)</h2>
+<table>
+<thead>
+<tr><th>Platform</th><th>WASM Requirements</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Cloudflare Workers</strong></td><td>✅ Single <code>.wasm</code> module <br> ✅ Exports <code>main()</code> or named entrypoint</td></tr>
+<tr><td><strong>Fastly Compute@Edge</strong></td><td>✅ Single <code>.wasm</code> module <br> ✅ Exports <code>_start</code>, or Fastly-specific ABI</td></tr>
+<tr><td><strong>Wasmer</strong></td><td>✅ Single <code>.wasm</code> with WCGI or WASI interface</td></tr>
+<tr><td><strong>WASMEdge</strong></td><td>✅ Single <code>.wasm</code>, supports WASI + HTTP embedding</td></tr>
+</tbody>
+</table>
+<blockquote>
+<p>🔁 <strong>All expect a <em>single binary module</em></strong> — not multiple <code>.wasm</code> files.</p>
+</blockquote>
+<hr />
+<h2>🏗 Recommended Compilation Pipeline</h2>
+<p>Here’s how <strong>Glyph</strong> should handle WASM output:</p>
+<h3>1. <strong>Per-File IR + Metadata Generation</strong></h3>
+<p>For each <code>.gly</code> file:</p>
+<pre><code class="language-plaintext">→ build/glyph-ir/com.example.math.ops.glyphmod.json
+→ build/glyph-ir/com.example.math.ops.ir.json
+</code></pre>
+<h3>2. <strong>Link-Time Compilation Pass</strong></h3>
+<p>Run the linker stage to:</p>
+<ul>
+<li>Resolve all function and type references</li>
+<li>Deduplicate types and constants</li>
+<li>Merge into <strong>one <code>.wasm</code></strong></li>
+</ul>
+<pre><code class="language-plaintext">→ build/wasm/myproject.wasm
+</code></pre>
+<p>Optionally:</p>
+<ul>
+<li>Use <code>glyphc --link</code> or Gradle task</li>
+<li>Generate <code>.wat</code> for debugging</li>
+</ul>
+<hr />
+<h2>✍️ Example Project: Cloudflare Worker</h2>
+<p>You'd end up with:</p>
+<pre><code>/dist
+├── worker.js                # Cloudflare bootstrap file
+├── glyph-runtime.js         # Optional JS wrapper for memory management
+├── glyph.wasm               # 🔥 Final compiled Glyph output
+</code></pre>
+<pre><code class="language-js">// worker.js (Cloudflare-style)
+import wasm from './glyph.wasm';
+
+export default {
+  async fetch(request) {
+    const instance = await WebAssembly.instantiate(wasm);
+    return new Response(instance.exports.handle());
+  }
+}
+</code></pre>
+<hr />
+<h2>🔁 Summary</h2>
+<table>
+<thead>
+<tr><th>Compilation Stage</th><th>Output</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Per file</td><td><code>.glyphmod.json</code>, <code>.ir.json</code></td><td>For analysis, not deployed</td></tr>
+<tr><td>Final project link</td><td><code>myproject.wasm</code></td><td>✅ Single <code>.wasm</code> for serverless platforms</td></tr>
+<tr><td>Cloudflare-compatible</td><td>One <code>.wasm</code> + entrypoint</td><td>Usually wrapped in a JS or TS file</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

@@ -1,3 +1,7 @@
+---
+title = "Variable Initialization Syntax"
+layout = "default"
+---
 
 ## ✅ Your Proposed Syntax: No Colons, No Inference
 

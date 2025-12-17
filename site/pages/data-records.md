@@ -1,3 +1,8 @@
+---
+title = "Data Records"
+layout = "default"
+---
+
 Excellent choice. `record` is:
 
 * ✅ **Formal yet lightweight** — fits a systems language feel

@@ -1,0 +1,113 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Map Definition Rules</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Revised Map Syntax Proposal (Groovy-Influenced)</h2>
+<h3>🔹 1. <strong>Literal map with typed keys/values</strong></h3>
+<pre><code class="language-glyph">var mymap = [int: string] { 1: "one", 2: "two" }
+</code></pre>
+<ul>
+<li>Type declaration is embedded in square brackets (<code>[K: V]</code>)</li>
+<li>Literal content is enclosed in <code>{ ... }</code></li>
+<li>Clean, Groovy-esque, easy to parse</li>
+</ul>
+<h3>🔹 2. <strong>Empty map with capacity</strong></h3>
+<pre><code class="language-glyph">var mymap = [int: int] (12)
+</code></pre>
+<ul>
+<li>Declares a map of <code>int → int</code> with capacity for 12 entries</li>
+<li>Short, expressive, and type-safe</li>
+</ul>
+<h3>🔹 3. <strong>Quick string:string default map</strong></h3>
+<pre><code class="language-glyph">var mymap = [:] (10)
+</code></pre>
+<ul>
+<li>Defaults to <code>[string: string]</code></li>
+<li>Good for quick prototyping or typical web-ish usage</li>
+<li><code>(10)</code> still conveys capacity</li>
+</ul>
+<blockquote>
+<p>✔️ All of these can use <code>var</code> or <code>val</code> to control the mutability of the <strong>map reference</strong>, as per our declaration rules.</p>
+</blockquote>
+<hr />
+<h2>🧠 Compiler Interpretation</h2>
+<table>
+<thead>
+<tr><th>Syntax</th><th>Parsed As</th></tr>
+</thead>
+<tbody>
+<tr><td><code>[K: V] { ... }</code></td><td>Typed map with literal entries</td></tr>
+<tr><td><code>[K: V] (N)</code></td><td>Typed map with fixed capacity</td></tr>
+<tr><td><code>[:] (N)</code></td><td>Default to <code>string: string</code> map with capacity</td></tr>
+</tbody>
+</table>
+<blockquote>
+<p>All become <code>MapInitExpr</code> or <code>MapAllocExpr</code> in the AST, with embedded type info and optional values.</p>
+</blockquote>
+<hr />
+<h2>✍️ Syntax Grammar (EBNF-style)</h2>
+<pre><code class="language-ebnf">map_type     ::= "[" type ":" type "]"
+map_literal  ::= map_type "{" map_entry_list "}"
+map_alloc    ::= map_type "(" expression ")"
+map_shorthand::= "[:]" "(" expression ")"
+
+map_entry_list ::= map_entry ("," map_entry)*
+map_entry      ::= expression ":" expression
+</code></pre>
+<hr />
+<h2>🔧 Type Inference &amp; Mutability</h2>
+<pre><code class="language-glyph">val m1 = [int: int] (64)         // immutable map reference
+var m2 = [string: int] { "x": 1 } // mutable map reference
+</code></pre>
+<ul>
+<li><strong>Map entries themselves are always mutable</strong> (unless we support immutable maps later)</li>
+<li><strong>Variable binding (var/val/const)</strong> determines whether the map reference can be reassigned</li>
+</ul>
+<hr />
+<h2>✅ Summary of Proposed Map Syntax</h2>
+<table>
+<thead>
+<tr><th>Use Case</th><th>Glyph Syntax Example</th></tr>
+</thead>
+<tbody>
+<tr><td>Typed literal</td><td><code>val m = [int: string] { 1: "one" }</code></td></tr>
+<tr><td>Empty with capacity</td><td><code>var m = [string: float] (20)</code></td></tr>
+<tr><td>Shorthand default</td><td><code>val m = [:] (10)</code>  → assumes <code>string: string</code></td></tr>
+<tr><td>Immutable ref</td><td><code>val m = [int: int] (12)</code></td></tr>
+<tr><td>Mutable ref</td><td><code>var m = [int: int] (12)</code></td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

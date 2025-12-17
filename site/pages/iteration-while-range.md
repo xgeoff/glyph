@@ -1,3 +1,7 @@
+---
+title = "Iteration: while & range"
+layout = "default"
+---
 
 ## ✅ Glyph `while` Loop — Final Design
 

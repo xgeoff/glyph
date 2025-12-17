@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Array Syntax</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ ✅ Glyph Array Syntax (Official)</h2>
+<h3>🔹 1. <strong>Typed Allocation</strong></h3>
+<pre><code class="language-glyph">val a = [int] (12)
+</code></pre>
+<ul>
+<li>Declares an immutable array of 12 <code>int</code>s</li>
+<li>Allocates memory in WASM for <code>12 * sizeof(int)</code> bytes</li>
+<li>Type must always be specified</li>
+</ul>
+<hr />
+<h3>🔹 2. <strong>Mutable Version</strong></h3>
+<pre><code class="language-glyph">var a = [string] (5)
+</code></pre>
+<ul>
+<li>Allows reassignment of the array variable (not elements — that depends on internal mutability)</li>
+</ul>
+<hr />
+<h3>🔹 3. <strong>Planned (not MVP)</strong></h3>
+<h4>A. Literal</h4>
+<pre><code class="language-glyph">val a = [1, 2, 3]                // inferred as [int] (3)
+val a = [int] { 1, 2, 3 }        // explicit form
+</code></pre>
+<h4>B. Programmatic Fill</h4>
+<pre><code class="language-glyph">val a = [int] (12) filled with 0
+val a = [int] (12) using { i =&gt; i * 2 }
+</code></pre>
+<hr />
+<h3>🔹 4. <strong>Access and Mutation</strong></h3>
+<pre><code class="language-glyph">val x = a[4]         // access
+a[2] = 99            // set value
+</code></pre>
+<hr />
+<h2>✍️ Syntax Grammar</h2>
+<pre><code class="language-ebnf">array_decl   ::= "[" type "]" "(" expression ")"
+array_access ::= IDENT "[" expression "]"
+array_assign ::= IDENT "[" expression "]" "=" expression
+</code></pre>
+<hr />
+<h2>📊 Consistency with Maps</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Map</th><th>Array</th></tr>
+</thead>
+<tbody>
+<tr><td>Declaration</td><td><code>[K:V] (cap)</code></td><td><code>[T] (len)</code></td></tr>
+<tr><td>Literal</td><td><code>[K:V] { ... }</code></td><td><code>[T] { ... }</code> (planned)</td></tr>
+<tr><td>Default</td><td><code>[:] (10)</code></td><td><em>(none; type required)</em></td></tr>
+<tr><td>Access</td><td><code>map["key"]</code></td><td><code>arr[3]</code></td></tr>
+<tr><td>Mutation</td><td><code>map[k] = v</code></td><td><code>arr[i] = v</code></td></tr>
+</tbody>
+</table>
+<hr />
+<p>Glyph arrays are now:</p>
+<ul>
+<li>✅ Clean and expressive</li>
+<li>✅ Visually and structurally consistent with maps</li>
+<li>✅ Friendly for WASM codegen</li>
+</ul>
+
+    </div>
+</main>
+</body>
+</html>

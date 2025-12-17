@@ -1,3 +1,7 @@
+---
+title = "Variable Declaration Model"
+layout = "default"
+---
 
 ## ✅ Glyph Variable Declaration Model
 

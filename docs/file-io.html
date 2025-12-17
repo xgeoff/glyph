@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>File I/O</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h1>📁 Glyph Standard Library: File I/O API</h1>
+<h2>🎯 Goals</h2>
+<ul>
+<li>
+<p>Async by default — all I/O operations return <code>Future[T]</code> and require <code>await</code></p>
+</li>
+<li>
+<p>Record-based configuration for extensibility and clarity</p>
+</li>
+<li>
+<p>Optional fluent convenience methods for common patterns</p>
+</li>
+<li>
+<p>Compatible with platforms that support filesystem access:</p>
+<ul>
+<li>✅ <strong>JVM</strong>: full access</li>
+<li>✅ <strong>WASI</strong>: partial access (if enabled)</li>
+<li>❌ <strong>Cloudflare</strong>: not supported (compile error)</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>✅ Usage Model</h2>
+<h3>🔸 Base namespace:</h3>
+<pre><code class="language-glyph">filesystem.request(cfg)
+filesystem.read.request(cfg)
+filesystem.write.request(cfg)
+filesystem.append.request(cfg)
+filesystem.exists.request(cfg)
+filesystem.delete.request(cfg)
+</code></pre>
+<hr />
+<h2>🧾 Record Definitions</h2>
+<h3>🔹 <code>FileRequest</code></h3>
+<pre><code class="language-glyph">record FileRequest {
+  string path
+  string? content       // used for write/append
+  bool binary           // false = UTF-8 text; true = raw bytes (future)
+}
+</code></pre>
+<h3>🔹 <code>FileReadResponse</code></h3>
+<pre><code class="language-glyph">record FileReadResponse {
+  string? content
+  bool found
+}
+</code></pre>
+<h3>🔹 <code>FileWriteResponse</code></h3>
+<pre><code class="language-glyph">record FileWriteResponse {
+  bool success
+  int bytesWritten
+}
+</code></pre>
+<hr />
+<h2>✍️ Example: Read a File</h2>
+<pre><code class="language-glyph">val FileRequest cfg = FileRequest {
+  path = "/tmp/data.txt"
+  binary = false
+}
+
+val FileReadResponse result = await filesystem.read.request(cfg)
+
+if result.found {
+  println("File says: " + (result.content ?: "empty"))
+} else {
+  println("File not found")
+}
+</code></pre>
+<hr />
+<h2>✍️ Example: Write a File</h2>
+<pre><code class="language-glyph">val cfg = FileRequest {
+  path = "/tmp/log.txt"
+  content = "Started at 9:01"
+  binary = false
+}
+
+val FileWriteResponse result = await filesystem.write.request(cfg)
+
+if result.success {
+  println("Wrote " + result.bytesWritten + " bytes.")
+} else {
+  println("Failed to write file.")
+}
+</code></pre>
+<hr />
+<h2>✅ Fluent Shortcuts (Optional)</h2>
+<p>To improve ergonomics:</p>
+<pre><code class="language-glyph">val result = await filesystem.read.request("/tmp/user.json")
+
+val ok = await filesystem.write.request("/tmp/log.txt", "hello world")
+
+val exists = await filesystem.exists.request("/tmp/config.yaml")
+</code></pre>
+<p>Each shortcut would wrap the <code>FileRequest</code> object internally.</p>
+<hr />
+<h2>⚠ Platform Behavior</h2>
+<table>
+<thead>
+<tr><th>Platform</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>JVM</td><td>Maps to <code>java.nio.file.Files</code> and friends</td></tr>
+<tr><td>WASI</td><td>Uses WASI syscalls (<code>fd_read</code>, <code>fd_write</code>, etc.)</td></tr>
+<tr><td>Cloudflare</td><td>❌ File I/O not supported → compile error</td></tr>
+</tbody>
+</table>
+<blockquote>
+<p>Glyph compiler emits a <strong>platform-aware error</strong> if file APIs are used on unsupported targets (e.g., Cloudflare).</p>
+</blockquote>
+<hr />
+<h2>✅ Summary of File I/O Design</h2>
+<table>
+<thead>
+<tr><th>Operation</th><th>Function Call</th><th>Input</th><th>Output Type</th></tr>
+</thead>
+<tbody>
+<tr><td>Read file</td><td><code>await filesystem.read.request(cfg)</code></td><td><code>FileRequest</code></td><td><code>FileReadResponse</code></td></tr>
+<tr><td>Write file</td><td><code>await filesystem.write.request(cfg)</code></td><td><code>FileRequest</code></td><td><code>FileWriteResponse</code></td></tr>
+<tr><td>Append file</td><td><code>await filesystem.append.request(cfg)</code></td><td><code>FileRequest</code></td><td><code>FileWriteResponse</code></td></tr>
+<tr><td>Check exists</td><td><code>await filesystem.exists.request(cfg)</code></td><td><code>FileRequest</code></td><td><code>bool</code></td></tr>
+<tr><td>Delete file</td><td><code>await filesystem.delete.request(cfg)</code></td><td><code>FileRequest</code></td><td><code>bool</code></td></tr>
+</tbody>
+</table>
+<pre><code class="language-glyph">fun async FileReadResponse filesystem.read.request(string path)
+
+fun async FileWriteResponse filesystem.write.request(string path, string content)
+
+fun async bool filesystem.exists.request(string path)
+
+fun async bool filesystem.delete.request(string path)
+</code></pre>
+<p>Each one internally builds a <code>FileRequest</code> and delegates to the generic version:</p>
+<pre><code class="language-glyph">fun async FileReadResponse filesystem.read.request(FileRequest cfg)
+</code></pre>
+<hr />
+<h3>✅ Bonus: Overload Pattern</h3>
+<p>This also gives you freedom later to support overloads:</p>
+<pre><code class="language-glyph">fun async FileWriteResponse filesystem.write.request(FileRequest cfg)
+fun async FileWriteResponse filesystem.write.request(string path, string content)
+fun async FileWriteResponse filesystem.write.request(string path, string content, bool binary)
+</code></pre>
+
+    </div>
+</main>
+</body>
+</html>

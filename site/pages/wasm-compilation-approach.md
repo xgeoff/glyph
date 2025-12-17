@@ -1,3 +1,7 @@
+---
+title = "WASM Compilation Approach"
+layout = "default"
+---
 
 ## ✅ WASM Compilation Approach in Glyph
 

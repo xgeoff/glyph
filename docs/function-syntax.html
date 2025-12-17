@@ -1,0 +1,229 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Function Syntax</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Revised Glyph Function Syntax</h2>
+<h3>🔸 Function Definition Format</h3>
+<p>To align with variable declarations (<code>val int x = 5</code>), we'll move the return type <strong>before</strong> the function name:</p>
+<pre><code class="language-glyph">fun int add(int a, int b) {
+  return a + b
+}
+</code></pre>
+<h3>🔸 Structure Breakdown</h3>
+<pre><code>fun &lt;return_type&gt; &lt;name&gt;(&lt;typed_params&gt;) { ... }
+</code></pre>
+<table>
+<thead>
+<tr><th>Element</th><th>Required?</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fun</code></td><td>✅</td><td>Function keyword</td></tr>
+<tr><td><code>&lt;return_type&gt;</code></td><td>✅</td><td>Must be explicit (like all types in Glyph)</td></tr>
+<tr><td><code>&lt;name&gt;</code></td><td>✅</td><td>Function name</td></tr>
+<tr><td><code>&lt;params&gt;</code></td><td>✅</td><td>Typed parameters (no inference, like variables)</td></tr>
+<tr><td><code>{}</code> block</td><td>✅</td><td>Contains function body; return is optional (Kotlin-style)</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Return Behavior</h2>
+<p>Glyph will mimic <strong>Kotlin-style returns</strong>:</p>
+<ul>
+<li>
+<p><strong>Explicit <code>return</code></strong> is allowed</p>
+</li>
+<li>
+<p><strong>Last expression</strong> in the function block is used as the return value (if compatible with return type)</p>
+</li>
+<li>
+<p>If return type is <code>void</code>, either:</p>
+<ul>
+<li>Use <code>return</code> without value</li>
+<li>Omit return statement altogether</li>
+</ul>
+</li>
+</ul>
+<h3>Examples:</h3>
+<pre><code class="language-glyph">fun int square(int x) {
+  x * x    // implicit return
+}
+
+fun void greet(string name) {
+  print("Hello, " + name)  // no return needed
+}
+</code></pre>
+<p>If a function has multiple branches, you must <strong>use <code>return</code></strong> explicitly in each branch.</p>
+<hr />
+<h2>✅ Null Safety: Kotlin vs Glyph</h2>
+<h3>🔹 Kotlin's Null Safety Model</h3>
+<p>In Kotlin:</p>
+<ul>
+<li><strong>Non-null by default</strong>: <code>String</code> cannot be null</li>
+<li>Use <code>?</code> for nullable types: <code>String?</code></li>
+<li>Compiler enforces null checks</li>
+</ul>
+<pre><code class="language-kotlin">val name: String = "Alice"     // never null
+val nickname: String? = null   // nullable
+</code></pre>
+<p>Accessing nullable types safely:</p>
+<pre><code class="language-kotlin">nickname?.length           // safe call
+nickname?.let { println(it) } // executes block if not null
+val len = nickname ?: 0    // Elvis operator (default fallback)
+</code></pre>
+<hr />
+<h3>🔹 Glyph Null Safety Proposal</h3>
+<h4>✅ Non-null by default</h4>
+<p>All types are non-null unless declared otherwise using <code>?</code> suffix:</p>
+<pre><code class="language-glyph">val string name = "Alice"       // never null
+val string? nickname = null     // nullable
+</code></pre>
+<h4>✅ Type Rules</h4>
+<ul>
+<li><code>string</code> ≠ <code>string?</code></li>
+<li>Must perform explicit null checks or use safe-access operators</li>
+</ul>
+<h4>✅ Safe Access Operators (planned)</h4>
+<ul>
+<li><code>?.</code> → safe property or method call</li>
+<li><code>?:</code> → Elvis operator for fallback</li>
+</ul>
+<pre><code class="language-glyph">val int? x = null
+val int y = x ?: 0         // y = 0 if x is null
+
+val int? len = nickname?.length
+</code></pre>
+<hr />
+<h3>🔸 Compiler Enforcement</h3>
+<ul>
+<li>Disallows passing <code>string?</code> to a function expecting <code>string</code></li>
+<li>Forces null-check or Elvis fallback</li>
+</ul>
+<pre><code class="language-glyph">fun void greet(string name) {
+  print("Hello, " + name)
+}
+
+greet(nickname)    // ❌ compile error if nickname is string?
+greet(nickname ?: "friend")  // ✅
+</code></pre>
+<hr />
+<h2>🧾 Updated Grammar Snippet</h2>
+<pre><code class="language-ebnf">function_decl ::= "fun" type IDENT "(" param_list? ")" block
+param         ::= type IDENT
+type          ::= base_type ["?"]    // supports nullability suffix
+</code></pre>
+<hr />
+<h2>✅ Summary</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Kotlin</th><th>Glyph</th></tr>
+</thead>
+<tbody>
+<tr><td>Nullability</td><td><code>Type?</code></td><td><code>type?</code></td></tr>
+<tr><td>Safe access</td><td><code>?.</code></td><td><code>?.</code> (planned)</td></tr>
+<tr><td>Default fallback</td><td><code>?:</code></td><td><code>?:</code> (planned)</td></tr>
+<tr><td>Return behavior</td><td>Last expr or <code>return</code></td><td>Same</td></tr>
+<tr><td>Function syntax</td><td><code>fun name(): Type</code></td><td><code>fun Type name(...)</code></td></tr>
+</tbody>
+</table>
+<h2>✅ <code>async</code> Keyword — Asynchronous Function Support</h2>
+<p>Glyph uses the <code>async</code> keyword to define functions that perform asynchronous operations and must be resolved using <code>await</code>.</p>
+<hr />
+<h3>🔹 Function Declaration Syntax</h3>
+<pre><code class="language-glyph">fun async &lt;return_type&gt; &lt;function_name&gt;(&lt;params&gt;) {
+  // function body
+}
+</code></pre>
+<ul>
+<li><code>async</code> appears <strong>before the return type</strong></li>
+<li>The return type reflects the <strong>actual result</strong> of the function (not a future)</li>
+<li>The function must be <strong>invoked with <code>await</code></strong> to access its result</li>
+</ul>
+<hr />
+<h3>🔸 Example</h3>
+<pre><code class="language-glyph">fun async HttpResponse fetchData(string url) {
+  val HttpRequest req = HttpRequest {
+    method = "GET"
+    url = url
+    headers = [:]
+    timeout = 3000
+  }
+
+  return await network.http.request(req)
+}
+</code></pre>
+<pre><code class="language-glyph">val HttpResponse result = await fetchData("https://api.site.com")
+println(result.status)
+</code></pre>
+<hr />
+<h3>🔸 Rules</h3>
+<table>
+<thead>
+<tr><th>Rule</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>✅ <code>await</code> required</td><td>You must <code>await</code> the result of an <code>async</code> function call</td></tr>
+<tr><td>❌ Cannot <code>await</code> a non-async func</td><td>Compile error if <code>await</code> is used on a non-async function</td></tr>
+<tr><td>✅ <code>async</code> required to suspend</td><td>Only <code>async</code> functions can use <code>await</code> internally</td></tr>
+<tr><td>✅ Return type is not wrapped</td><td>The declared type is the resolved value, not a future</td></tr>
+</tbody>
+</table>
+<hr />
+<h3>🔹 Common Pattern</h3>
+<pre><code class="language-glyph">fun async string loadGreeting() {
+  val response = await filesystem.read.request("/tmp/greeting.txt")
+  return response.content ?: "Hello"
+}
+
+val message = await loadGreeting()
+println(message)
+</code></pre>
+<hr />
+<h3>🔸 Syntax Recap (Grammar)</h3>
+<pre><code class="language-ebnf">function_decl ::= "fun" ["async"] type IDENT "(" param_list? ")" block
+</code></pre>
+<hr />
+<h3>✅ Summary</h3>
+<table>
+<thead>
+<tr><th>Keyword</th><th>Applies To</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>async</code></td><td>Function</td><td>Declares an asynchronous function</td></tr>
+<tr><td><code>await</code></td><td>Expression</td><td>Resolves the result of an async call</td></tr>
+</tbody>
+</table>
+<hr />
+<p>This pattern provides <strong>clean async flow</strong> in Glyph without callbacks, promises, or explicit future types — making asynchronous programming <strong>safe, readable, and first-class</strong>.</p>
+
+    </div>
+</main>
+</body>
+</html>

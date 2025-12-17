@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Data Records</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<p>Excellent choice. <code>record</code> is:</p>
+<ul>
+<li>✅ <strong>Formal yet lightweight</strong> — fits a systems language feel</li>
+<li>✅ Familiar from <strong>Java 14+</strong>, but with your own spin</li>
+<li>✅ Easy to parse and intuitive in type declarations</li>
+<li>✅ Matches the mental model of immutable (or semi-immutable) data</li>
+</ul>
+<hr />
+<h2>✅ Glyph <code>record</code> Design Overview</h2>
+<h3>🔸 Declaration</h3>
+<pre><code class="language-glyph">record User {
+  val string id
+  string name
+}
+</code></pre>
+<ul>
+<li><code>val</code> = immutable field</li>
+<li>No prefix = mutable field</li>
+<li>Enforces <strong>explicit typing</strong> per Glyph norms</li>
+</ul>
+<h3>🔸 Initialization</h3>
+<pre><code class="language-glyph">val User u = User { id = "u1", name = "Alice" }
+</code></pre>
+<ul>
+<li>Named initialization</li>
+<li>Field order <strong>not</strong> enforced</li>
+<li>All fields must be provided</li>
+</ul>
+<h3>🔸 Access and Mutation</h3>
+<pre><code class="language-glyph">val id = u.id
+u.name = "Bob"     // if field is mutable
+</code></pre>
+<p>Follows same dot-access model as arrays and maps.</p>
+<hr />
+<h2>🛠 Interoperability</h2>
+<table>
+<thead>
+<tr><th>Concept</th><th>Glyph Example</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Array of records</strong></td><td><code>val users = [User] (10)</code></td></tr>
+<tr><td><strong>Map of records</strong></td><td><code>var db = [string: User] { "admin": User { ... } }</code></td></tr>
+<tr><td><strong>Function input</strong></td><td><code>func greet(User u): void { ... }</code></td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🧾 Grammar Additions</h2>
+<pre><code class="language-ebnf">record_decl     ::= "record" IDENT "{" field_decl+ "}"
+field_decl      ::= ( "val" )? type IDENT
+record_literal  ::= IDENT "{" field_assignment ("," field_assignment)* "}"
+field_assignment ::= IDENT "=" expression
+</code></pre>
+
+    </div>
+</main>
+</body>
+</html>

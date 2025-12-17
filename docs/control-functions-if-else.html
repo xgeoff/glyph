@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Control Flow: if / else</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ <code>if</code> / <code>else</code></h2>
+<h3>🔹 Syntax</h3>
+<pre><code class="language-glyph">if condition {
+  // block
+} else {
+  // fallback block
+}
+</code></pre>
+<h3>🔸 Key Features</h3>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>Braces</td><td>Always required (no single-line special case)</td></tr>
+<tr><td><code>if</code> as expression</td><td>✅ Can be assigned: <code>val x = if cond { ... } else { ... }</code></td></tr>
+<tr><td>Type consistency</td><td>All branches must return same type (if assigned)</td></tr>
+<tr><td>Optional <code>else</code></td><td>✅ Only required when used as an expression</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Ternary Expression</h2>
+<h3>🔹 Syntax</h3>
+<pre><code class="language-glyph">val result = condition ? value_if_true : value_if_false
+</code></pre>
+<h3>🔸 Key Features</h3>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>Expression-based</td><td>✅ Always an expression</td></tr>
+<tr><td>Optional usage</td><td>✅ Not required, alternative to <code>if</code></td></tr>
+<tr><td>Clarity</td><td>Best for short, inline conditional logic</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ Elvis Operator (Null Coalescing)</h2>
+<h3>🔹 Syntax</h3>
+<pre><code class="language-glyph">val y = x ?: fallback
+</code></pre>
+<h3>🔸 Key Features</h3>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>Null check</td><td>Returns <code>x</code> if not null, else <code>fallback</code></td></tr>
+<tr><td>Expression-based</td><td>✅</td></tr>
+<tr><td>Matches Kotlin</td><td>✅</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>✅ <code>match</code> Expression</h2>
+<h3>🔹 Syntax</h3>
+<pre><code class="language-glyph">val result = match value {
+  1 = "one"
+  2 = "two"
+} else "other"
+</code></pre>
+<h3>🔸 Key Features</h3>
+<table>
+<thead>
+<tr><th>Feature</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td>Expression-based</td><td>✅ Always returns a value</td></tr>
+<tr><td><code>else</code> fallback</td><td>✅ Required unless all cases are exhaustive</td></tr>
+<tr><td>Syntax style</td><td><code>key = value</code> pairs, no fallthrough, no colons</td></tr>
+<tr><td>Outside <code>else</code></td><td><code>else</code> clause placed after <code>}</code> block: <code>} else "fallback"</code></td></tr>
+<tr><td>Parsing simplicity</td><td>Clean AST separation of branches and default</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🧾 Summary Table</h2>
+<table>
+<thead>
+<tr><th>Construct</th><th>Glyph Syntax Example</th><th>Expression-Based</th><th>Required <code>else</code></th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>if/else</code></td><td><code>if x &gt; 10 { ... } else { ... }</code></td><td>✅</td><td>Only if assigned</td><td>Preferred for branching logic</td></tr>
+<tr><td>Ternary</td><td><code>x &gt; 10 ? "yes" : "no"</code></td><td>✅</td><td>Always required</td><td>Optional sugar for short logic</td></tr>
+<tr><td>Elvis</td><td><code>val y = x ?: 0</code></td><td>✅</td><td>Always required</td><td>Null-coalescing fallback</td></tr>
+<tr><td><code>match</code></td><td><code>match code { 200 = "OK" } else "Unknown"</code></td><td>✅</td><td>✅ unless exhaustive</td><td>No fallthrough; clean default style</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

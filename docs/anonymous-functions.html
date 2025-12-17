@@ -1,0 +1,114 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Anonymous Functions</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ WASM Constraints: What We Can and Can’t Do</h2>
+<h3>🔹 What WASM Supports</h3>
+<ul>
+<li><strong>First-class functions</strong> via function references (in <code>wasm64</code> with <code>reference types</code>)</li>
+<li><strong>Function pointers</strong> (via <code>funcref</code>)</li>
+<li><strong>Indirect function calls</strong> (<code>call_indirect</code>)</li>
+<li><strong>Closures?</strong> ❌ Not directly — WASM <strong>does not natively support closures with captured environments</strong></li>
+</ul>
+<p>So for <strong>MVP compatibility</strong>, we must:</p>
+<ul>
+<li>Avoid captured closures</li>
+<li>Stick to <strong>anonymous functions</strong> that don’t capture external variables</li>
+<li>Represent lambdas as <strong>function pointers or inline anonymous functions</strong> with no lexical scope</li>
+</ul>
+<hr />
+<h2>✅ Glyph Lambda Design (WASM-Compatible MVP)</h2>
+<h3>🔸 Syntax #1: Inline Anonymous Function</h3>
+<pre><code class="language-glyph">val f = fun int (int x, int y) {
+  x + y
+}
+</code></pre>
+<h3>🔸 Syntax #2: Assigned Named Function Pointer</h3>
+<pre><code class="language-glyph">fun int add(int a, int b) {
+  a + b
+}
+
+val f = add
+</code></pre>
+<hr />
+<h2>🔧 Lambda Rules (MVP)</h2>
+<table>
+<thead>
+<tr><th>Feature</th><th>Support</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Lambda declaration</td><td>✅</td><td>Anonymous functions are first-class</td></tr>
+<tr><td>Type required</td><td>✅</td><td>No inference; always specify return and param types</td></tr>
+<tr><td>No closure capture</td><td>❌</td><td>WASM MVP doesn’t support it</td></tr>
+<tr><td>Assign to variables</td><td>✅</td><td>Function references</td></tr>
+<tr><td>Pass as arguments</td><td>✅</td><td>If target supports <code>funcref</code></td></tr>
+<tr><td>Return from functions</td><td>✅</td><td>As long as it’s a function ref, not a closure</td></tr>
+<tr><td>Inline expressions</td><td>Planned</td><td>Could add sugar like <code>=&gt;</code> later, but not in MVP</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🔸 Function Type Annotations</h2>
+<p>You’ll need a way to describe the function type explicitly:</p>
+<pre><code class="language-glyph">val (int, int) -&gt; int f = fun int (int a, int b) {
+  return a + b
+}
+</code></pre>
+<p>But for MVP and parsing simplicity, we use <strong>assignment-based type inference</strong> for lambdas, like this:</p>
+<pre><code class="language-glyph">val f = fun int (int a, int b) { a + b }  // type of f is function from (int, int) to int
+</code></pre>
+<hr />
+<h2>🧠 Compiler Representation</h2>
+<p>WASM translation would look like:</p>
+<pre><code class="language-wasm">(type $add_fn (func (param i32 i32) (result i32)))
+(func $add (type $add_fn) ... )
+(global $f (ref func) (ref.func $add))
+(call_ref $f ...)
+</code></pre>
+<hr />
+<h2>✅ Summary: Glyph Lambda Model</h2>
+<table>
+<thead>
+<tr><th>Concept</th><th>Glyph Syntax Example</th></tr>
+</thead>
+<tbody>
+<tr><td>Lambda declaration</td><td><code>val f = fun int (int x, int y) { x + y }</code></td></tr>
+<tr><td>Function pointer</td><td><code>val f = add</code></td></tr>
+<tr><td>Call lambda</td><td><code>val result = f(3, 4)</code></td></tr>
+<tr><td>No closure capture</td><td><code>val n = 10; val f = fun int () { n + 1 }</code> ❌ Invalid</td></tr>
+<tr><td>Return a lambda</td><td><code>return fun int (int x) { x * 2 }</code></td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

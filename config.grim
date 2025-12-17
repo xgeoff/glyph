@@ -1,4 +1,6 @@
 title = "Grimoire Site"
 baseUrl = "/"
-outputDir = "public"
+outputDir = "docs"
 sourceDir = "site"
+author = "xgeoff"
+description = "glyph programming language"

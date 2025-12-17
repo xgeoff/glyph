@@ -1,3 +1,7 @@
+---
+title = "Array Syntax"
+layout = "default"
+---
 
 ## ✅ ✅ Glyph Array Syntax (Official)
 

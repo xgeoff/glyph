@@ -1,3 +1,7 @@
+---
+title = "File I/O"
+layout = "default"
+---
 
 # 📁 Glyph Standard Library: File I/O API
 

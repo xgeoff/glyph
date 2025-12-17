@@ -1,0 +1,158 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Network I/O</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ 1. <strong>Fluent Protocol API Design</strong></h2>
+<p>You define a hierarchy of modules and functions like:</p>
+<pre><code class="language-glyph">network.http.request(cfg)
+network.http.get.request(cfg)
+network.websocket.request(cfg)
+network.custom.request(cfg)
+</code></pre>
+<p>This makes <code>network</code> the gateway, with submodules for each protocol.</p>
+<p>Each <code>request(...)</code> accepts a <strong>record</strong> that defines the call.</p>
+<hr />
+<h2>✅ 2. <strong>Record-Based Request Configuration</strong></h2>
+<h3>🔸 Example: <code>HttpRequest</code></h3>
+<pre><code class="language-glyph">record HttpRequest {
+  string method       // "GET", "POST", etc.
+  string url
+  [string: string] headers
+  string? body
+  int timeout         // in ms
+}
+</code></pre>
+<p>You might define similar records for <code>WebSocketRequest</code>, <code>WebRTCOffer</code>, etc.</p>
+<h3>Example usage:</h3>
+<pre><code class="language-glyph">val HttpRequest cfg = HttpRequest {
+  method = "POST"
+  url = "https://api.example.com"
+  headers = [string: string] {
+    "Content-Type": "application/json"
+  }
+  body = "{ \"id\": 1 }"
+  timeout = 5000
+}
+</code></pre>
+<hr />
+<h2>✅ 3. <strong>Async-Friendly Request + Response Handling</strong></h2>
+<h3>🔸 Suggested async model:</h3>
+<ul>
+<li><code>request(cfg)</code> returns a <strong><code>Future[HttpResponse]</code></strong></li>
+<li>You <code>await</code> it to extract the response</li>
+</ul>
+<h3>🔸 Example response record:</h3>
+<pre><code class="language-glyph">record HttpResponse {
+  int status
+  string? body
+  [string: string] headers
+}
+</code></pre>
+<hr />
+<h3>✍️ Sample Full Usage</h3>
+<pre><code class="language-glyph">val HttpRequest cfg = HttpRequest {
+  method = "GET"
+  url = "https://news.api.com/latest"
+  headers = [:]
+  timeout = 3000
+}
+
+val HttpResponse resp = await network.http.request(cfg)
+
+if resp.status == 200 {
+  println(resp.body ?: "No content")
+} else {
+  println("Failed with code " + resp.status)
+}
+</code></pre>
+<p>Or use convenience call:</p>
+<pre><code class="language-glyph">val resp = await network.http.get.request(HttpRequest {
+  url = "https://api.site.com"
+  timeout = 2000
+  headers = [:]
+})
+println(resp.status)
+</code></pre>
+<hr />
+<h2>🔄 Fluent Convenience Functions</h2>
+<p>Under the hood:</p>
+<pre><code class="language-glyph">network.http.get.request(cfg)
+</code></pre>
+<p>...could just fill in <code>method = "GET"</code> and delegate to:</p>
+<pre><code class="language-glyph">network.http.request(cfg)
+</code></pre>
+<p>Same for <code>POST</code>, etc.</p>
+<hr />
+<h2>✅ Avoiding Callback Hell</h2>
+<p>Instead of:</p>
+<pre><code class="language-glyph">network.http.request(cfg, callback)  // ❌ JS-style
+</code></pre>
+<p>You're doing:</p>
+<pre><code class="language-glyph">val resp = await network.http.request(cfg)  // ✅ async by default
+</code></pre>
+<p>No need to nest or chain — just linear flow with <code>await</code>.</p>
+<hr />
+<h2>🧠 Optional: Future Extension</h2>
+<ul>
+<li>
+<p><code>spawn</code> and <code>await</code> would allow advanced use later:</p>
+<pre><code class="language-glyph">val task = spawn { network.http.request(cfg) }
+val result = await task
+</code></pre>
+</li>
+<li>
+<p>Streaming support (WebSocket, etc.) could follow this shape:</p>
+<pre><code class="language-glyph">val stream = await network.websocket.request(wsCfg)
+stream.onMessage { msg -&gt; ... }     // event registration
+</code></pre>
+</li>
+</ul>
+<hr />
+<h2>✅ Summary of Design</h2>
+<table>
+<thead>
+<tr><th>Concept</th><th>Syntax Example</th></tr>
+</thead>
+<tbody>
+<tr><td>Base request</td><td><code>await network.http.request(cfg)</code></td></tr>
+<tr><td>GET shortcut</td><td><code>await network.http.get.request(cfg)</code></td></tr>
+<tr><td>Configurable record</td><td><code>HttpRequest { method = ..., url = ..., ... }</code></td></tr>
+<tr><td>Async response</td><td><code>val resp = await ...</code></td></tr>
+<tr><td>Response object</td><td><code>HttpResponse { status, body, headers }</code></td></tr>
+<tr><td>Future-proof design</td><td>Open to custom protocols (<code>network.custom.request</code>)</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

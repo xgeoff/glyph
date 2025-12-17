@@ -1,3 +1,7 @@
+---
+title = "Project Structure Approach"
+layout = "default"
+---
 
 ## ✅ Overview of Goals
 
@@ -77,7 +81,7 @@ fun void main() {
 * Each `fun` becomes a top-level WASM function.
 * Namespaced via mangling or type index:
 
-    * `com.example.math.add` → `$com_example_math_add`
+    * `com.example.math.add` → `\$com_example_math_add`
 * Memory layout:
 
     * Linear memory for arrays/maps
@@ -87,14 +91,14 @@ fun void main() {
 
 ```wasm
 (module
-  (type $t0 (func (param i32 i32) (result i32)))
-  (func $com_example_math_add (type $t0)
+  (type \$t0 (func (param i32 i32) (result i32)))
+  (func \$com_example_math_add (type \$t0)
     local.get 0
     local.get 1
     i32.add
   )
-  (func $main ...)
-  (export "main" (func $main))
+  (func \$main ...)
+  (export "main" (func \$main))
 )
 ```
 
@@ -158,7 +162,7 @@ public interface IntBinary {
 | ---------------- | ------------------------------------------ |
 | Package          | `package com.example.util`                 |
 | File Path        | `src/glyph/com/example/util/tools.gly`     |
-| WASM Func Name   | `$com_example_util_add`                    |
+| WASM Func Name   | `\$com_example_util_add`                    |
 | JVM Class Output | `com.example.util.Tools`                   |
 | Function Types   | `type Binary = fun(int, int): int`         |
 | Gradle Targets   | WASM (`main.wasm`), JVM (`.class`, `.jar`) |

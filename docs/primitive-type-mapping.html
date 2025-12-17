@@ -1,0 +1,180 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Primitive Type Mapping</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>✅ Glyph Primitive Type Mapping</h2>
+<table>
+<thead>
+<tr><th>Glyph Type</th><th>WASM Type</th><th>Bit Width</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int</code></td><td><code>i32</code></td><td>32 bits</td><td>Signed integer</td></tr>
+<tr><td><code>long</code></td><td><code>i64</code></td><td>64 bits</td><td>Signed long integer</td></tr>
+<tr><td><code>float</code></td><td><code>f32</code></td><td>32 bits</td><td>Floating-point (single-precision)</td></tr>
+<tr><td><code>double</code></td><td><code>f64</code></td><td>64 bits</td><td>Floating-point (double-precision)</td></tr>
+<tr><td><code>bool</code></td><td><code>i32</code></td><td>32 bits</td><td>0 = false, 1 = true</td></tr>
+<tr><td><code>char</code></td><td><code>i32</code></td><td>32 bits</td><td>Unicode scalar value (UCS-4)</td></tr>
+<tr><td><code>string</code></td><td>-</td><td>(custom)</td><td>UTF-8 bytes + length header</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>🧬 Syntax Examples</h2>
+<h3>Declaring variables:</h3>
+<pre><code class="language-glyph">val int age = 42
+val float price = 19.99
+var name = "Glyph"
+</code></pre>
+<h3>Arrays:</h3>
+<pre><code class="language-glyph">val nums =  [int] (10)
+var values = [double] (5)
+const bits = [bool] (64)
+</code></pre>
+<h3>Maps:</h3>
+<pre><code class="language-glyph">var table = [string: int] (32)
+val hex = [string: int] { "a": 10, "b": 11 }
+</code></pre>
+<hr />
+<h2>🧱 Optional: Under-the-Hood Mapping for Compiler</h2>
+<p>Your compiler will map these internally:</p>
+<pre><code class="language-glyph">// Input (Glyph):
+val int x = 1
+
+// Internal representation:
+x: Type.Primitive(INT)   // maps to WASM i32
+
+// In WASM:
+(i32.const 1)
+</code></pre>
+<hr />
+<h2>🔐 Reserved Type Keywords (MVP)</h2>
+<p>We now define this <strong>official Glyph primitive type list</strong>:</p>
+<pre><code>int, long, float, double, bool, char, string
+</code></pre>
+<blockquote>
+<p>All lowercase, consistent, and friendly for WASM targets.</p>
+</blockquote>
+<hr />
+<h2>🧾 Summary</h2>
+<table>
+<thead>
+<tr><th>Glyph Type</th><th>WASM Type</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>int</code></td><td><code>i32</code></td><td>default integer</td></tr>
+<tr><td><code>long</code></td><td><code>i64</code></td><td>for larger numbers</td></tr>
+<tr><td><code>float</code></td><td><code>f32</code></td><td>single-precision decimal</td></tr>
+<tr><td><code>double</code></td><td><code>f64</code></td><td>high-precision decimal</td></tr>
+<tr><td><code>bool</code></td><td><code>i32</code></td><td>0/1 values only</td></tr>
+<tr><td><code>char</code></td><td><code>i32</code></td><td>Unicode codepoint</td></tr>
+<tr><td><code>string</code></td><td>—</td><td>custom UTF-8 structure</td></tr>
+</tbody>
+</table>
+<h1>🔧 Core Type Reference: <code>bytes</code></h1>
+<p>The <code>bytes</code> type in Glyph represents a raw binary buffer. It is used for working with encoded data, file I/O, network payloads, and other low-level operations where <code>string</code> is not appropriate.</p>
+<hr />
+<h2>✅ Syntax</h2>
+<h3>🔹 Allocate a buffer</h3>
+<pre><code class="language-glyph">val bytes buf = [bytes] (1024)  // 1024-byte buffer
+</code></pre>
+<h3>🔹 Index and mutate</h3>
+<pre><code class="language-glyph">buf[0] = 0x42
+val int x = buf[1]
+</code></pre>
+<h3>🔹 Length</h3>
+<pre><code class="language-glyph">val int len = buf.length
+</code></pre>
+<hr />
+<h2>🔁 Conversion: Encoding &amp; Decoding</h2>
+<p>Glyph provides a fluent codec API for transforming between <code>string</code> and <code>bytes</code>.</p>
+<h3>🔹 Encode</h3>
+<pre><code class="language-glyph">val bytes b = encode.utf8("hello")
+</code></pre>
+<ul>
+<li>Converts a <code>string</code> to UTF-8 encoded bytes</li>
+</ul>
+<h3>🔹 Decode</h3>
+<pre><code class="language-glyph">val string s = decode.utf8(b)
+</code></pre>
+<ul>
+<li>Converts UTF-8 byte data to a string</li>
+</ul>
+<h3>🔹 Codec API Structure</h3>
+<table>
+<thead>
+<tr><th>Namespace</th><th>Function</th><th>Input</th><th>Output</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>encode</code></td><td><code>utf8(string)</code></td><td><code>string</code></td><td><code>bytes</code></td><td>Encode text as UTF-8 bytes</td></tr>
+<tr><td><code>decode</code></td><td><code>utf8(bytes)</code></td><td><code>bytes</code></td><td><code>string</code></td><td>Decode UTF-8 bytes to string</td></tr>
+</tbody>
+</table>
+<blockquote>
+<p>The <code>utf8</code> codec is built-in. Additional codecs (e.g. <code>base64</code>, <code>hex</code>) may be added in future versions.</p>
+</blockquote>
+<hr />
+<h2>🧱 Buffer Operations</h2>
+<h3>🔹 <code>append</code></h3>
+<pre><code class="language-glyph">val bytes c = a.append(b)
+</code></pre>
+<ul>
+<li>Returns a new buffer containing the concatenation of <code>a</code> and <code>b</code></li>
+<li>Does not mutate either input buffer</li>
+</ul>
+<h3>🔹 <code>slice</code></h3>
+<pre><code class="language-glyph">val bytes part = b.slice(0, 4)
+</code></pre>
+<ul>
+<li>Returns a new buffer with a range of bytes from <code>b</code></li>
+<li>Slices from <code>start</code> for <code>length</code> bytes</li>
+<li>Throws or truncates if out-of-bounds (TBD by runtime spec)</li>
+</ul>
+<hr />
+<h2>✅ Summary</h2>
+<table>
+<thead>
+<tr><th>Operation</th><th>Glyph Syntax</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>Create buffer</td><td><code>[bytes] (size)</code></td><td>Allocates a byte array</td></tr>
+<tr><td>Access bytes</td><td><code>b[i]</code> / <code>b[i] = value</code></td><td>Reads or writes a byte at index</td></tr>
+<tr><td>Get length</td><td><code>b.length</code></td><td>Returns number of bytes</td></tr>
+<tr><td>Encode string</td><td><code>encode.utf8("text")</code></td><td>Returns UTF-8 encoded <code>bytes</code></td></tr>
+<tr><td>Decode to string</td><td><code>decode.utf8(bytes)</code></td><td>Returns <code>string</code> from UTF-8 bytes</td></tr>
+<tr><td>Append buffers</td><td><code>a.append(b)</code></td><td>Concatenate two byte arrays</td></tr>
+<tr><td>Slice buffer</td><td><code>b.slice(start, length)</code></td><td>Extract subrange of bytes</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>

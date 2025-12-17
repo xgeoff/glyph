@@ -1,0 +1,109 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Iteration Utilities</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h1>📚 Glyph Standard Library: Iteration Utilities</h1>
+<hr />
+<h2>🔹 <code>each</code> — Iterate Over Arrays</h2>
+<p>The <code>each</code> method lets you iterate over each element in an array using a clean block syntax. The loop variable <code>it</code> is implicitly available.</p>
+<h3>✅ Syntax</h3>
+<pre><code class="language-glyph">array.each {
+  // use `it` as the current element
+}
+</code></pre>
+<h3>🧾 Example</h3>
+<pre><code class="language-glyph">val [string] names = [string] (3)
+names[0] = "Alice"
+names[1] = "Bob"
+names[2] = "Cleo"
+
+names.each {
+  print("Hello, " + it)
+}
+</code></pre>
+<hr />
+<h2>🔹 <code>each</code> — Iterate Over Maps</h2>
+<p>For maps, <code>each</code> provides access to a synthetic <code>it</code> object containing <code>.key</code> and <code>.value</code>.</p>
+<h3>✅ Syntax</h3>
+<pre><code class="language-glyph">map.each {
+  // use it.key and it.value
+}
+</code></pre>
+<h3>🧾 Example</h3>
+<pre><code class="language-glyph">val [string: int] scores = [string: int] {
+  "Alice": 95,
+  "Bob": 82
+}
+
+scores.each {
+  print(it.key + " scored " + it.value)
+}
+</code></pre>
+<hr />
+<h2>🔹 <code>withIndex</code> — Iterate with Index (Arrays Only)</h2>
+<p>Use <code>withIndex</code> to access both the index and value of each array element. The loop variable <code>it</code> has two fields: <code>.index</code> and <code>.value</code>.</p>
+<h3>✅ Syntax</h3>
+<pre><code class="language-glyph">array.withIndex {
+  // it.index gives the position
+  // it.value gives the element
+}
+</code></pre>
+<h3>🧾 Example</h3>
+<pre><code class="language-glyph">val [string] names = [string] (3)
+names[0] = "Alice"
+names[1] = "Bob"
+names[2] = "Cleo"
+
+names.withIndex {
+  print(it.index + ": " + it.value)
+}
+</code></pre>
+<blockquote>
+<p>Note: <code>withIndex</code> is only supported on arrays. Maps do not guarantee ordering.</p>
+</blockquote>
+<hr />
+<h2>✅ Summary Table</h2>
+<table>
+<thead>
+<tr><th>Method</th><th>Applies To</th><th><code>it</code> Fields</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>each</code></td><td>Arrays</td><td><code>it</code> = element</td><td>Iterate over values</td></tr>
+<tr><td><code>each</code></td><td>Maps</td><td><code>it.key</code>, <code>it.value</code></td><td>Iterate over key-value</td></tr>
+<tr><td><code>withIndex</code></td><td>Arrays</td><td><code>it.index</code>, <code>it.value</code></td><td>Indexed iteration</td></tr>
+</tbody>
+</table>
+
+    </div>
+</main>
+</body>
+</html>
