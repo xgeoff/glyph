@@ -1,6 +1,6 @@
-title = "Grimoire Site"
+title = "Glyph Programming Language"
 baseUrl = "/"
 outputDir = "docs"
 sourceDir = "site"
 author = "xgeoff"
-description = "glyph programming language"
+description = "glyph programming language site"
