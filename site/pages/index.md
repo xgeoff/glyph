@@ -123,4 +123,23 @@ Glyph is in **active development**, with a focus on:
 * Gradle integration
 * Standard library primitives and type system finalization
 
+## 📚 Glyph Guides
+
+- [Anonymous Functions](/anonymous-functions.html)
+- [Array Syntax](/array-syntax.html)
+- [Control Flow: if / else](/control-functions-if-else.html)
+- [Data Records](/data-records.html)
+- [File I/O](/file-io.html)
+- [Function Syntax](/function-syntax.html)
+- [Iteration Utilities](/iteration.html)
+- [Iteration: while & range](/iteration-while-range.html)
+- [Map Definition Rules](/map-definition-rules.html)
+- [Network I/O](/network-io.html)
+- [Primitive Type Mapping](/primitive-type-mapping.html)
+- [Project Model](/project-model.html)
+- [Project Structure Approach](/project-structure-approach.html)
+- [Variable Declaration Model](/variable-declaration-model.html)
+- [Variable Initialization Syntax](/variable-initialization-syntax.html)
+- [WASM Compilation Approach](/wasm-compilation-approach.html)
+
 Stay tuned as we move toward alpha release!
