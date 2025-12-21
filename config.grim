@@ -1,5 +1,5 @@
 title = "Glyph Programming Language"
-baseUrl = "/"
+baseUrl = "glyph/"
 outputDir = "docs"
 sourceDir = "site"
 author = "xgeoff"
