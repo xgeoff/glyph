@@ -18,7 +18,9 @@ gradlePlugin {
 dependencies {
     implementation gradleApi()
     implementation localGroovy()
+    implementation project(':glyph-core')
 
     testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
     testImplementation 'junit:junit:4.13.2'
+    testImplementation gradleTestKit()
 }

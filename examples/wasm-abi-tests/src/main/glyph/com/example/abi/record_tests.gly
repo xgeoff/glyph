@@ -1,0 +1,15 @@
+package com.example.abi
+
+record User {
+  val string name
+  val int age
+}
+
+fun void runRecordTest() {
+  val User user = User {
+    name = "Alice",
+    age = 42
+  }
+  print(user.name)
+  print(user.age)
+}

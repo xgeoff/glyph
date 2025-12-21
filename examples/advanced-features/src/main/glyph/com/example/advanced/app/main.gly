@@ -1,0 +1,40 @@
+package com.example.advanced.app
+
+import com.example.advanced.analytics.buildScorecard
+import com.example.advanced.data.createRoster
+import com.example.advanced.model.Scorecard
+import com.example.advanced.model.User
+import com.example.advanced.util.roleWeights
+import com.example.advanced.util.isLeadRole
+
+fun void main() {
+  const string banner = "Glyph advanced language sample"
+  print(banner)
+
+  val [User] roster = createRoster()
+  val [string:int] weights = roleWeights()
+
+  printScore(roster[0], weights)
+  printScore(roster[1], weights)
+  printScore(roster[2], weights)
+}
+
+fun void printScore(User user, [string:int] weights) {
+  val Scorecard card = buildScorecard(user, weights)
+  val bool lead = isLeadRole(user.role)
+  var string status = "core-track"
+  status = if lead {
+    "lead-track"
+  } else {
+    status
+  }
+  val string badge = lead ? "[lead]" : "[core]"
+  val string safeLocation = card.location ?: "Remote"
+  print(badge)
+  print(card.userId)
+  print(card.tier)
+  print(status)
+  print(safeLocation)
+  print(card.roleLabel)
+  print(card.total)
+}

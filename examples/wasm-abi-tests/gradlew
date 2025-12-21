@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+# Minimal wrapper to reuse root Gradle wrapper with local cache
+DIR=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$DIR/../.." && pwd)
+export GRADLE_USER_HOME="$DIR/.gradle-cache"
+exec "$ROOT/gradlew" "$@"

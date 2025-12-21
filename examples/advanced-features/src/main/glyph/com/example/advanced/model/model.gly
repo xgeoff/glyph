@@ -1,0 +1,22 @@
+package com.example.advanced.model
+
+record Address {
+  val string city
+  val string country
+}
+
+record User {
+  val string id
+  string name
+  string role
+  Address? address
+  [int] scores
+}
+
+record Scorecard {
+  val string userId
+  string tier
+  int total
+  string? location
+  string roleLabel
+}

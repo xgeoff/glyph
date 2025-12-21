@@ -1,5 +1,72 @@
-# Ignore Gradle project-specific cache directory
-.gradle
+############################
+# macOS
+############################
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
 
-# Ignore Gradle build output directory
-build
+
+############################
+# IntelliJ IDEA
+############################
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+
+############################
+# Gradle
+############################
+.gradle/
+.gradle-cache/
+build/
+**/build/
+
+
+############################
+# Gradle Wrapper (keep these!)
+############################
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!gradlew
+!gradlew.bat
+
+
+############################
+# JVM / Kotlin / Java
+############################
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+
+############################
+# Node / tooling (if applicable)
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+############################
+# Editor backups
+############################
+*~
+*.swp
+*.swo
+
+
+############################
+# OS / temp files
+############################
+tmp/
+temp/

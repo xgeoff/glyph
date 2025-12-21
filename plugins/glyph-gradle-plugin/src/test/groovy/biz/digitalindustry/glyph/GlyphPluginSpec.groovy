@@ -14,5 +14,7 @@ class GlyphPluginSpec extends Specification {
 
         then:
         project.tasks.findByName('helloGlyph') != null
+        project.tasks.findByName('glyphParse') != null
+        project.extensions.findByName('glyph') != null
     }
 }

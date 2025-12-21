@@ -1,0 +1,7 @@
+package examples.typecheck.errors
+
+fun void main() {
+  if "not a bool" {
+    print("unreachable")
+  }
+}

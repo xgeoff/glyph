@@ -97,6 +97,27 @@ Glyph is built to:
 │   └── jvm/     # → .class / .jar
 ```
 
+### Gradle Plugin Configuration
+
+Apply the Glyph Gradle plugin and add a `glyph { … }` block in your `build.gradle`:
+
+```groovy
+plugins {
+    id 'biz.digitalindustry.glyph'
+}
+
+glyph {
+    entryFile = file('src/main/glyph/com/example/app/main.gly')
+    // sourceDir defaults to src/main/glyph
+    // grammarFile is optional; omit it to use the bundled glyph.peg
+    // grammarFile = file('path/to/custom/glyph.peg')
+}
+
+> Debugging tip: add `-PglyphDebug=true` when running plugin tasks (e.g. `./gradlew -PglyphDebug=true glyphParse`) to log the indexed functions, records, and import paths resolved for the current project.
+```
+
+By default the plugin uses the grammar bundled inside `glyph-core`, so most projects do **not** need to set `grammarFile`. Tool authors can still point at a local PEG file when experimenting with new syntax.
+
 ---
 
 ## 🧠 Why Glyph?
@@ -114,4 +135,3 @@ Glyph is in **active development**, with a focus on:
 * Standard library primitives and type system finalization
 
 Stay tuned as we move toward alpha release!
-

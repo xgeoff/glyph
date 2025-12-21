@@ -1,0 +1,8 @@
+plugins {
+    id 'biz.digitalindustry.glyph'
+}
+
+glyph {
+    entryFile = file('src/main/glyph/com/example/abi/main.gly')
+    grammarFile = file('../../grammar/glyph.peg')
+}

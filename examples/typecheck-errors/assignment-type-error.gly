@@ -1,0 +1,7 @@
+package examples.typecheck.errors
+
+fun void main() {
+  var int counter = 0
+  counter = "not-an-int"
+  print(counter)
+}

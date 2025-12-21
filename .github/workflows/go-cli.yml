@@ -1,0 +1,32 @@
+name: Go CLI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  go-cli:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/glyph-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install pigeon
+        run: go install github.com/mna/pigeon@latest
+
+      - name: Generate parser
+        run: PATH="$HOME/go/bin:$PATH" go generate ./...
+
+      - name: Go test
+        run: go test ./...
+
+      - name: Smoke test CLI
+        run: go run . -file ../../examples/hello.gly

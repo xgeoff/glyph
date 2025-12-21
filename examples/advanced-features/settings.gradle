@@ -1,0 +1,10 @@
+pluginManagement {
+    // Pull plugins (glyph plugin and its core dependency) from the root composite.
+    includeBuild("../../")
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "advanced-features"

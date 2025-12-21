@@ -1,0 +1,3 @@
+Advanced features sample added under `examples/wasm-basic/advanced-features`.
+This file can be deleted once filesystem permissions allow removing
+top-level temp files.

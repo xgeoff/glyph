@@ -1,0 +1,10 @@
+package examples.typecheck.errors
+
+record User {
+  val string id
+}
+
+fun void main() {
+  val User user = User { id = "demo" }
+  print(user.name) // field does not exist
+}

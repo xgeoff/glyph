@@ -1,0 +1,34 @@
+package com.example.advanced.analytics
+
+import com.example.advanced.model.User
+import com.example.advanced.model.Scorecard
+import com.example.advanced.model.Address
+import com.example.advanced.util.describeRole
+
+fun Scorecard buildScorecard(User user, [string:int] weights) {
+  val int bias = weights[user.role]
+  val int total = bias + sumScores(user.scores)
+  val string tier = match user.role {
+    "ops" = "ops-vanguard"
+    "ml" = "ml-researcher"
+  } else "builder"
+
+  Scorecard {
+    userId = user.id,
+    tier = tier,
+    total = total,
+    location = formatLocation(user.address),
+    roleLabel = describeRole(user.role)
+  }
+}
+
+fun int sumScores([int] scores) {
+  val int first = scores[0]
+  val int second = scores[1]
+  val int third = scores[2]
+  first + second + third
+}
+
+fun string? formatLocation(Address? maybe) {
+  maybe?.city
+}

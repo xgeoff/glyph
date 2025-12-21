@@ -1,0 +1,5 @@
+fun void main() {
+  val int x = 2 + 3
+  print("result:")
+  print(x)
+}

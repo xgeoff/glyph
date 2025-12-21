@@ -1,0 +1,13 @@
+package examples.typecheck.errors
+
+fun int absolute(int x) {
+  if x < 0 {
+    return 0 - x
+  }
+  // no else branch -> not all paths return
+}
+
+fun void main() {
+  val int result = absolute(-3)
+  print(result)
+}

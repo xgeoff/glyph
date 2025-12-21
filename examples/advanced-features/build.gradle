@@ -1,0 +1,7 @@
+plugins {
+    id 'biz.digitalindustry.glyph'
+}
+
+glyph {
+    entryFile = file('src/main/glyph/com/example/advanced/app/main.gly')
+}

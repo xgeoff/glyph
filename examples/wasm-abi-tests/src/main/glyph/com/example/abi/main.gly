@@ -1,0 +1,7 @@
+package com.example.abi
+
+fun void main() {
+  runRecordTest()
+  runArrayTest()
+  runMapControlTest()
+}

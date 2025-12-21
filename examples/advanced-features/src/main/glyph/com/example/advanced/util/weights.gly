@@ -1,0 +1,22 @@
+package com.example.advanced.util
+
+fun [string:int] roleWeights() {
+  val [string:int] weights = [string:int] { "ops": 5, "ml": 4 }
+  weights["growth"] = 3
+  weights
+}
+
+fun string describeRole(string role) {
+  match role {
+    "ops" = "Operations"
+    "ml" = "Applied ML"
+    "growth" = "Growth"
+  } else "Generalist"
+}
+
+fun bool isLeadRole(string role) {
+  match role {
+    "ops" = true
+    "ml" = true
+  } else false
+}

@@ -1,0 +1,10 @@
+package examples.typecheck.errors
+
+fun int add(int a, int b) {
+  a + b
+}
+
+fun void main() {
+  val int result = add(5) // missing second argument
+  print(result)
+}

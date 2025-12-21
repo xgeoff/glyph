@@ -1,0 +1,42 @@
+package com.example.advanced.data
+
+import com.example.advanced.model.User
+import com.example.advanced.model.Address
+
+fun [int] buildScores(int first, int second, int third) {
+  val [int] buffer = [int] (3)
+  buffer[0] = first
+  buffer[1] = second
+  buffer[2] = third
+  buffer
+}
+
+fun [User] createRoster() {
+  val [User] roster = [User] (3)
+
+  roster[0] = User {
+    id = "ops-guardian",
+    name = "Aria Flux",
+    role = "ops",
+    address = Address { city = "Denver", country = "USA" },
+    scores = buildScores(6, 7, 8)
+  }
+
+  roster[1] = User {
+    id = "ml-guide",
+    name = "Mikel Loop",
+    role = "ml",
+    address = null,
+    scores = buildScores(5, 9, 6)
+  }
+
+  roster[2] = User {
+    id = "growth-scout",
+    name = "Isla North",
+    role = "growth",
+    address = Address { city = "Lisbon", country = "PT" },
+    scores = buildScores(4, 4, 7)
+  }
+
+  roster
+}

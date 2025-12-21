@@ -1,0 +1,475 @@
+{
+    import (
+        "fmt"
+        "glyph-cli/ast"
+    )
+
+    func applySuffix(base ast.Expr, suffixes []interface{}) ast.Expr {
+        expr := base
+        for _, item := range suffixes {
+            parts := item.([]interface{})
+            kind := parts[0].(string)
+            switch kind {
+            case "field":
+                expr = &ast.FieldAccess{Target: expr, Field: parts[1].(string)}
+            case "safe-field":
+                expr = &ast.SafeFieldAccess{Target: expr, Field: parts[1].(string)}
+            case "index":
+                expr = &ast.IndexAccess{Target: expr, Index: parts[1].(ast.Expr)}
+            }
+        }
+        return expr
+    }
+}
+
+Program         <- Skip pkg:PackageDecl? imps:ImportDecl* d:Decl* Skip EOF {
+    decls := d.([]interface{})
+    records := []*ast.RecordDecl{}
+    funcs := []*ast.FunctionDecl{}
+    for _, item := range decls {
+        switch v := item.(type) {
+        case *ast.RecordDecl:
+            records = append(records, v)
+        case *ast.FunctionDecl:
+            funcs = append(funcs, v)
+        }
+    }
+    var pkgDecl *ast.PackageDecl
+    if pkg != nil {
+        pkgDecl = pkg.(*ast.PackageDecl)
+    }
+    imports := []*ast.ImportDecl{}
+    if imps != nil {
+        list := imps.([]interface{})
+        for _, item := range list {
+            imports = append(imports, item.(*ast.ImportDecl))
+        }
+    }
+    return &ast.Program{Package: pkgDecl, Imports: imports, Records: records, Functions: funcs}, nil
+}
+
+PackageDecl     <- PACKAGE WS+ q:QualifiedName Terminator {
+    return &ast.PackageDecl{Name: q.(string)}, nil
+}
+
+ImportDecl      <- IMPORT WS+ q:QualifiedName Terminator {
+    return &ast.ImportDecl{Name: q.(string)}, nil
+}
+
+Decl            <- RecordDecl / FuncDecl
+
+RecordDecl      <- RECORD WS name:Ident WS* "{" Skip f:RecordField* "}" {
+    fields := f.([]interface{})
+    out := make([]*ast.RecordField, len(fields))
+    for i, field := range fields {
+        out[i] = field.(*ast.RecordField)
+    }
+    return &ast.RecordDecl{Name: name.(string), Fields: out}, nil
+}
+
+RecordField     <- m:FieldMutability? WS? t:Type WS n:Ident Terminator {
+    mut := "var"
+    if m != nil {
+        mut = m.(string)
+    }
+    return &ast.RecordField{Name: n.(string), Type: t.(string), Mutability: mut}, nil
+}
+
+FieldMutability <- VAL { return "val", nil }
+
+FuncDecl        <- Skip FUN WS t:Type WS name:Ident WS* "(" WS* p:ParamList? WS* ")" WS* b:Block {
+    params := []*ast.Param{}
+    if p != nil {
+        list := p.([]interface{})
+        params = make([]*ast.Param, len(list))
+        for i, item := range list {
+            params[i] = item.(*ast.Param)
+        }
+    }
+    return &ast.FunctionDecl{Name: name.(string), Params: params, ReturnType: t.(string), Body: b.(*ast.Block)}, nil
+}
+
+ParamList       <- p:Param r:(WS* "," WS* Param)* {
+    out := []interface{}{p}
+    for _, item := range r.([]interface{}) {
+        parts := item.([]interface{})
+        out = append(out, parts[3])
+    }
+    return out, nil
+}
+
+Param           <- t:Type WS n:Ident {
+    return &ast.Param{Name: n.(string), Type: t.(string)}, nil
+}
+
+Block           <- "{" Skip s:Statement* "}" {
+    stmts := s.([]interface{})
+    out := make([]ast.Statement, len(stmts))
+    for i, st := range stmts {
+        out[i] = st.(ast.Statement)
+    }
+    return &ast.Block{Statements: out}, nil
+}
+
+Statement       <- s:(VarDecl / ImplicitTypedDecl / AssignStmt / PrintStmt / ReturnStmt / ExprStmt) Terminator { return s, nil }
+
+VarDecl         <- k:VarKind WS n:Ident WS t:TypeAnn? WS? "=" WS? e:Expr {
+    typeName := ""
+    if t != nil {
+        typeName = t.(string)
+    }
+    return &ast.VarDecl{Name: n.(string), Type: typeName, Mutability: k.(string), Value: e.(ast.Expr)}, nil
+}
+
+ImplicitTypedDecl <- n:Ident WS? ":" WS? t:Type WS? "=" WS? e:Expr {
+    return &ast.VarDecl{Name: n.(string), Type: t.(string), Mutability: "var", Value: e.(ast.Expr)}, nil
+}
+
+TypeAnn         <- ":" WS? t:Type { return t, nil }
+
+VarKind         <- CONST { return "const", nil } / VAL { return "val", nil } / VAR { return "var", nil }
+
+AssignStmt      <- t:Assignable WS? "=" WS? e:Expr {
+    return &ast.AssignStmt{Target: t.(ast.Expr), Value: e.(ast.Expr)}, nil
+}
+
+Assignable      <- p:PrimaryAccess s:AssignableSuffix* {
+    expr := applySuffix(p.(ast.Expr), s.([]interface{}))
+    return expr, nil
+}
+
+PrimaryAccess   <- i:Ident { return &ast.VarRef{Name: i.(string)}, nil }
+
+AssignableSuffix <- WS? "." WS? i:Ident { return []interface{}{ "field", i.(string) }, nil }
+                 / WS? "[" WS? e:Expr WS? "]" { return []interface{}{ "index", e.(ast.Expr) }, nil }
+AccessSuffix    <- WS? "?." WS? i:Ident { return []interface{}{ "safe-field", i.(string) }, nil }
+                / WS? "." WS? i:Ident { return []interface{}{ "field", i.(string) }, nil }
+                / WS? "[" WS? e:Expr WS? "]" { return []interface{}{ "index", e.(ast.Expr) }, nil }
+
+PrintStmt       <- PRINT WS? "(" WS? e:Expr WS? ")" {
+    return &ast.PrintStmt{Expr: e.(ast.Expr)}, nil
+}
+
+ReturnStmt      <- RETURN WS? e:Expr? {
+    var expr ast.Expr
+    if e != nil {
+        expr = e.(ast.Expr)
+    }
+    return &ast.ReturnStmt{Expr: expr}, nil
+}
+
+ExprStmt        <- e:Expr { return &ast.ExprStmt{Expr: e.(ast.Expr)}, nil }
+
+Expr            <- Elvis
+
+Elvis           <- m:MatchOrIf WS? "?" WS? ":" WS? r:Elvis {
+    return &ast.ElvisExpr{Left: m.(ast.Expr), Right: r.(ast.Expr)}, nil
+}
+                / Ternary
+
+Ternary         <- m:MatchOrIf WS? "?" WS? t:Ternary WS? ":" WS? f:Ternary {
+    return &ast.TernaryExpr{Condition: m.(ast.Expr), IfTrue: t.(ast.Expr), IfFalse: f.(ast.Expr)}, nil
+}
+                / MatchOrIf
+
+MatchOrIf       <- IfExpr / MatchExpr / Sum
+
+IfExpr          <- IF WS cond:Expr WS? tb:Block WS? ELSE WS? eb:Block {
+    return &ast.IfExpr{Condition: cond.(ast.Expr), ThenBlock: tb.(*ast.Block), ElseBlock: eb.(*ast.Block)}, nil
+}
+                / IF WS cond:Expr WS? tb:Block {
+    return &ast.IfExpr{Condition: cond.(ast.Expr), ThenBlock: tb.(*ast.Block)}, nil
+}
+
+MatchExpr       <- MATCH WS v:Expr WS? "{" Skip cases:MatchCase* "}" WS? ELSE WS? e:Expr {
+    list := cases.([]interface{})
+    out := make([]*ast.MatchCase, len(list))
+    for i, item := range list {
+        out[i] = item.(*ast.MatchCase)
+    }
+    return &ast.MatchExpr{Target: v.(ast.Expr), Cases: out, ElseExpr: e.(ast.Expr)}, nil
+}
+
+MatchCase       <- k:Expr WS? "=" WS? v:Expr Terminator {
+    return &ast.MatchCase{Key: k.(ast.Expr), Value: v.(ast.Expr)}, nil
+}
+
+Sum             <- l:Term t:(WS? o:AddOp WS? r:Term { return []interface{}{o, r}, nil })* {
+    left := l.(ast.Expr)
+    tails := t.([]interface{})
+    for _, item := range tails {
+        parts := item.([]interface{})
+        op := parts[0].(string)
+        right := parts[1].(ast.Expr)
+        left = &ast.BinaryOp{Op: op, Left: left, Right: right}
+    }
+    return left, nil
+}
+
+Term            <- l:Factor t:(WS? o:MulOp WS? r:Factor { return []interface{}{o, r}, nil })* {
+    left := l.(ast.Expr)
+    tails := t.([]interface{})
+    for _, item := range tails {
+        parts := item.([]interface{})
+        op := parts[0].(string)
+        right := parts[1].(ast.Expr)
+        left = &ast.BinaryOp{Op: op, Left: left, Right: right}
+    }
+    return left, nil
+}
+
+Factor          <- p:Primary s:AccessSuffix* {
+    expr := applySuffix(p.(ast.Expr), s.([]interface{}))
+    return expr, nil
+}
+
+Primary         <- IntLit / BoolLit / NullLit / StringLit / LambdaExpr / RecordLiteral / MapShorthandAlloc / MapLiteral / MapAlloc / ArrayAlloc / CallExpr / VarRef / "(" WS? Expr WS? ")"
+
+CallExpr        <- name:Ident WS? "(" WS? args:CallArgList? WS? ")" {
+    var arguments []ast.Expr
+    if args != nil {
+        list := args.([]interface{})
+        arguments = make([]ast.Expr, len(list))
+        for i, item := range list {
+            arguments[i] = item.(ast.Expr)
+        }
+    }
+    return &ast.CallExpr{Callee: name.(string), Arguments: arguments}, nil
+}
+
+CallArgList     <- a:Expr r:(WS? "," WS? Expr)* {
+    out := []interface{}{a.(ast.Expr)}
+    if r != nil {
+        for _, item := range r.([]interface{}) {
+            parts := item.([]interface{})
+            out = append(out, parts[len(parts)-1].(ast.Expr))
+        }
+    }
+    return out, nil
+}
+
+RecordLiteral   <- name:TypeIdent WS? "{" Skip f:FieldAssignList? "}" {
+    fields := map[string]ast.Expr{}
+    if f != nil {
+        list := f.([]interface{})
+        for _, item := range list {
+            parts := item.([]interface{})
+            fields[parts[0].(string)] = parts[1].(ast.Expr)
+        }
+    }
+    return &ast.RecordLiteral{TypeName: name.(string), Fields: fields}, nil
+}
+
+TypeIdent       <- &([A-Z]) Ident
+
+FieldAssignList <- a:FieldAssign r:(Skip "," Skip FieldAssign)* {
+    out := []interface{}{a}
+    for _, item := range r.([]interface{}) {
+        parts := item.([]interface{})
+        out = append(out, parts[3])
+    }
+    return out, nil
+}
+
+FieldAssign     <- n:Ident WS? "=" WS? e:Expr { return []interface{}{n.(string), e.(ast.Expr)}, nil }
+
+ArrayAlloc      <- "[" WS? t:Type WS? "]" WS? "(" WS? e:Expr WS? ")" {
+    return &ast.ArrayAllocExpr{ElementType: t.(string), Size: e.(ast.Expr)}, nil
+}
+
+MapLiteral      <- "[" WS? k:Type WS? ":" WS? v:Type WS? "]" WS? "{" Skip e:MapEntryList? "}" {
+    entries := []*ast.MapEntryExpr{}
+    if e != nil {
+        list := e.([]interface{})
+        entries = make([]*ast.MapEntryExpr, len(list))
+        for i, item := range list {
+            parts := item.([]interface{})
+            entries[i] = &ast.MapEntryExpr{Key: parts[0].(ast.Expr), Value: parts[1].(ast.Expr)}
+        }
+    }
+    return &ast.MapLiteralExpr{KeyType: k.(string), ValueType: v.(string), Entries: entries}, nil
+}
+
+MapAlloc        <- "[" WS? k:Type WS? ":" WS? v:Type WS? "]" WS? "(" WS? e:Expr WS? ")" {
+    return &ast.MapAllocExpr{KeyType: k.(string), ValueType: v.(string), Capacity: e.(ast.Expr)}, nil
+}
+
+MapShorthandAlloc <- "[" WS? ":" WS? "]" WS? "(" WS? e:Expr WS? ")" {
+    return &ast.MapAllocExpr{KeyType: "string", ValueType: "string", Capacity: e.(ast.Expr)}, nil
+}
+
+MapEntryList    <- e:MapEntry r:(Skip "," Skip MapEntry)* {
+    out := []interface{}{e}
+    for _, item := range r.([]interface{}) {
+        parts := item.([]interface{})
+        out = append(out, parts[3])
+    }
+    return out, nil
+}
+
+MapEntry        <- k:Expr WS? ":" WS? v:Expr { return []interface{}{k.(ast.Expr), v.(ast.Expr)}, nil }
+
+VarRef          <- i:Ident { return &ast.VarRef{Name: i.(string)}, nil }
+
+IntLit          <- v:[0-9]+ {
+    var digits []byte
+    switch bs := v.(type) {
+    case []uint8:
+        digits = append(digits, bs...)
+    case []interface{}:
+        for _, item := range bs {
+            switch b := item.(type) {
+            case uint8:
+                digits = append(digits, b)
+            case []uint8:
+                digits = append(digits, b...)
+            }
+        }
+    default:
+        return nil, fmt.Errorf("unexpected int literal type %T", v)
+    }
+
+    var n int64
+    for _, b := range digits {
+        n = n*10 + int64(b-'0')
+    }
+    return &ast.IntLiteral{Value: n}, nil
+}
+
+BoolLit         <- TRUE { return &ast.BoolLiteral{Value: true}, nil }
+                / FALSE { return &ast.BoolLiteral{Value: false}, nil }
+
+NullLit         <- NULL { return &ast.NullLiteral{}, nil }
+
+StringLit       <- "\"" v:[^"]* "\"" {
+    switch val := v.(type) {
+    case []interface{}:
+        runes := make([]rune, 0, len(val))
+        for _, p := range val {
+            switch t := p.(type) {
+            case rune:
+                runes = append(runes, t)
+            case uint8:
+                runes = append(runes, rune(t))
+            case []uint8:
+                for _, b := range t {
+                    runes = append(runes, rune(b))
+                }
+            default:
+                return nil, fmt.Errorf("unexpected string part type %T", t)
+            }
+        }
+        return &ast.StringLiteral{Value: string(runes)}, nil
+    case []byte:
+        return &ast.StringLiteral{Value: string(val)}, nil
+    default:
+        return nil, fmt.Errorf("unexpected string literal type %T", val)
+    }
+}
+
+Type            <- t:(MapType / ArrayType / SimpleType) q:("?" WS?)? {
+    if q != nil {
+        return t.(string) + "?", nil
+    }
+    return t, nil
+}
+
+SimpleType      <- t:(VOID / INT / LONG / FLOAT / DOUBLE / CHAR / BYTES / STRING / BOOL) { return t.(string), nil }
+                / i:Ident { return i.(string), nil }
+
+ArrayType       <- "[" WS? t:Type WS? "]" { return "[" + t.(string) + "]", nil }
+
+MapType         <- "[" WS? k:Type WS? ":" WS? v:Type WS? "]" { return "[" + k.(string) + ":" + v.(string) + "]", nil }
+
+QualifiedName   <- head:Ident tail:("." Ident)* {
+    name := head.(string)
+    if tail != nil {
+        for _, item := range tail.([]interface{}) {
+            parts := item.([]interface{})
+            seg := parts[1].(string)
+            name = name + "." + seg
+        }
+    }
+    return name, nil
+}
+
+Ident           <- head:[A-Za-z_] tail:[A-Za-z0-9_]* {
+    var prefix []byte
+    switch h := head.(type) {
+    case uint8:
+        prefix = []byte{h}
+    case []uint8:
+        prefix = append([]byte{}, h...)
+    default:
+        return nil, fmt.Errorf("unexpected ident head type %T", h)
+    }
+    var tailBytes []byte
+    switch tv := tail.(type) {
+    case []uint8:
+        tailBytes = append(tailBytes, tv...)
+    case []interface{}:
+        for _, item := range tv {
+            switch v := item.(type) {
+            case uint8:
+                tailBytes = append(tailBytes, v)
+            case []uint8:
+                tailBytes = append(tailBytes, v...)
+            }
+        }
+    default:
+        return nil, fmt.Errorf("unexpected ident tail type %T", tv)
+    }
+
+    bs := append(prefix, tailBytes...)
+    return string(bs), nil
+}
+
+AddOp           <- o:("+" / "-") { return string(o.([]uint8)), nil }
+MulOp           <- o:("*" / "/") { return string(o.([]uint8)), nil }
+
+Terminator      <- WS* (";" WS*)? (NL WS*)* / WS* &( "}" / EOF )
+
+Skip            <- (WS / NL / Comment)*
+WS              <- [ \t\r]+
+NL              <- "\n"+
+
+Comment         <- "//" (!NL .)* NL
+
+VOID            <- "void"   { return "void", nil }
+INT             <- "int"    { return "int", nil }
+LONG            <- "long"   { return "long", nil }
+FLOAT           <- "float"  { return "float", nil }
+DOUBLE          <- "double" { return "double", nil }
+CHAR            <- "char"   { return "char", nil }
+BYTES           <- "bytes"  { return "bytes", nil }
+STRING          <- "string" { return "string", nil }
+BOOL            <- "bool"   { return "bool", nil }
+
+TRUE            <- "true"
+FALSE           <- "false"
+NULL            <- "null"
+VAL             <- "val"
+VAR             <- "var"
+CONST           <- "const"
+FUN             <- "fun"
+RECORD          <- "record"
+PRINT           <- "print"
+RETURN          <- "return"
+IF              <- "if"
+ELSE            <- "else"
+MATCH           <- "match"
+PACKAGE         <- "package"
+IMPORT          <- "import"
+
+EOF             <- !.
+LambdaExpr      <- FUN WS ret:Type WS? "(" WS? params:ParamList? WS? ")" WS? block:Block {
+    var parameters []*ast.Param
+    if params != nil {
+        list := params.([]interface{})
+        parameters = make([]*ast.Param, len(list))
+        for i, item := range list {
+            parameters[i] = item.(*ast.Param)
+        }
+    }
+    return &ast.LambdaExpr{Params: parameters, Body: block.(*ast.Block), ReturnType: ret.(string)}, nil
+}
