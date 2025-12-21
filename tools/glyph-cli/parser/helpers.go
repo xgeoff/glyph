@@ -19,3 +19,19 @@ func ParseProgramFile(path string) (*ast.Program, error) {
 	}
 	return program, nil
 }
+
+// ParseProgramSource parses in-memory source (used for -e inline execution).
+func ParseProgramSource(name string, source string) (*ast.Program, error) {
+	if name == "" {
+		name = "<inline>"
+	}
+	result, err := Parse(name, []byte(source))
+	if err != nil {
+		return nil, err
+	}
+	program, ok := result.(*ast.Program)
+	if !ok {
+		return nil, fmt.Errorf("unexpected parse result type %T", result)
+	}
+	return program, nil
+}

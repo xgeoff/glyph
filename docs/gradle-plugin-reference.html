@@ -1,0 +1,98 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Gradle Plugin Reference</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>🔹 Applying the Plugin</h2>
+<p>Add the plugin to your build and point it at your Glyph sources:</p>
+<pre><code class="language-kotlin">plugins {
+    id("biz.digitalindustry.glyph")
+}
+
+glyph {
+    // defaults shown
+    sourceDir = file("src/main/glyph")
+    entryFile = file("src/main/glyph/main.gly")
+    // optional: use a custom grammar
+    grammarFile = file("../grammar/glyph.peg")
+}
+</code></pre>
+<p>These defaults match the layout used in <code>examples/wasm-basic</code> and <code>examples/advanced-features</code>.</p>
+<hr />
+<h2>🔹 Tasks</h2>
+<table>
+<thead>
+<tr><th>Task</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>helloGlyph</code></td><td>Proof‑of‑life task (<code>./gradlew helloGlyph</code>)</td></tr>
+<tr><td><code>glyphParse</code></td><td>Parses + type‑checks all sources. Fails fast if grammar/type errors occur.</td></tr>
+<tr><td><code>glyphCompileWasm</code></td><td>Compiles the project to <code>build/wasm/main.wasm</code> (and optionally <code>main.wat</code>).</td></tr>
+<tr><td><code>glyphCompileJar</code></td><td>Emits a runnable JVM JAR at <code>build/jvm/main.jar</code> (using the Groovy compiler).</td></tr>
+</tbody>
+</table>
+<p>All tasks live in the <code>glyph</code> group inside <code>./gradlew tasks</code>.</p>
+<h3>Example</h3>
+<pre><code class="language-bash">./gradlew glyphParse
+./gradlew glyphCompileWasm -PglyphEmitWat=true
+./gradlew glyphCompileJar
+</code></pre>
+<p><code>glyphCompileWasm</code> honours the <code>glyphEmitWat</code> project property—set it to <code>true</code> to emit <code>main.wat</code> alongside <code>main.wasm</code>. When <code>glyphDebug</code> is present (any value), the plugin logs extra details about indexed functions, records, and imports.</p>
+<hr />
+<h2>🔹 Inputs &amp; Outputs</h2>
+<ul>
+<li><strong>Inputs</strong>: everything under <code>glyph.sourceDir</code>, plus the configured <code>entryFile</code> and optional <code>grammarFile</code>.</li>
+<li><strong>Outputs</strong>:
+<ul>
+<li><code>glyphCompileWasm</code> → <code>build/wasm/main.wasm</code> (+ <code>main.wat</code> if enabled)</li>
+<li><code>glyphCompileJar</code> → <code>build/jvm/main.jar</code></li>
+</ul>
+</li>
+</ul>
+<p>Gradle’s up‑to‑date checks work because the tasks declare these inputs/outputs—only changed files trigger recompilation.</p>
+<hr />
+<h2>🔹 Troubleshooting</h2>
+<table>
+<thead>
+<tr><th>Symptom</th><th>Fix</th></tr>
+</thead>
+<tbody>
+<tr><td>“Entry file … does not define main()”</td><td>Ensure your <code>entryFile</code> contains <code>fun void main()</code></td></tr>
+<tr><td>“Glyph grammar not found …”</td><td>Double‑check <code>glyph { grammarFile = … }</code> or remove it to use the bundled grammar</td></tr>
+<tr><td>Want verbose indexing logs</td><td>Run with <code>-PglyphDebug=true</code></td></tr>
+</tbody>
+</table>
+<p>Use the new <code>examples/wasm-abi-tests</code> or <code>examples/advanced-features</code> projects as templates—they already apply the plugin and wire the tasks into CI-friendly commands.</p>
+
+    </div>
+</main>
+</body>
+</html>

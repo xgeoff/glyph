@@ -1,0 +1,80 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Basic Page Needs
+  –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta charset="utf-8">
+    <title>Glyph CLI Reference</title>
+    <meta name="description" content="">
+    <meta name="author" content="xgeoff">
+
+    <!-- Mobile Specific Metas
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- FONT
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link href="fonts.googleapis.com/css?family=Raleway:400,300,600" rel="stylesheet" type="text/css">
+
+    <!-- CSS
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="stylesheet" href="css/normalize.css">
+    <link rel="stylesheet" href="css/skeleton.css">
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Favicon
+    –––––––––––––––––––––––––––––––––––––––––––––––––– -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+<body>
+<main class="container">
+    <div class="prose">
+<h2>🔹 Overview</h2>
+<p><code>glyph-cli</code> lives under <code>tools/glyph-cli/</code> and provides a lightweight way to parse, type‑check, and interpret Glyph programs straight from the command line. It shares the same parser and interpreter that the Gradle plugin uses, so behaviour is consistent.</p>
+<p>Run it with Go:</p>
+<pre><code class="language-bash">go run ./tools/glyph-cli --file examples/wasm-abi-tests/src/main/glyph/com/example/abi/main.gly
+</code></pre>
+<p>If you install it (<code>go install ./tools/glyph-cli</code>), invoke it as <code>glyph-cli</code>.</p>
+<hr />
+<h2>🔹 Command Usage</h2>
+<pre><code>glyph-cli [options] [file.gly]
+</code></pre>
+<h3>Options</h3>
+<table>
+<thead>
+<tr><th>Flag</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--file &lt;path&gt;</code></td><td>Path to a <code>.gly</code> file (positional filename works too)</td></tr>
+<tr><td><code>--root &lt;dir&gt;</code></td><td>Project root directory (defaults to the source file’s directory)</td></tr>
+<tr><td><code>-e "&lt;code&gt;"</code></td><td>Execute inline Glyph code without creating a file</td></tr>
+<tr><td><code>--run-wasm</code></td><td>Run the compiled <code>.wasm</code> via <code>wasmtime</code> (requires <code>--file path/to/main.wasm</code>)</td></tr>
+<tr><td><code>--help</code>, <code>-h</code></td><td>Display usage and exit</td></tr>
+</tbody>
+</table>
+<h3>Examples</h3>
+<p>Run a file inside <code>examples/</code>:</p>
+<pre><code class="language-bash">glyph-cli --file examples/advanced-features/src/main/glyph/com/example/advanced/app/main.gly
+</code></pre>
+<p>Execute a snippet inline:</p>
+<pre><code class="language-bash">glyph-cli -e 'fun void main() { print("hi from inline code") }'
+</code></pre>
+<p>Execute a WASM module that was produced by the Gradle plugin (requires <code>wasmtime</code>):</p>
+<pre><code class="language-bash">glyph-cli --file build/wasm/main.wasm --run-wasm
+</code></pre>
+<h3>Error Reporting</h3>
+<p>All errors are prefixed with <code>Error:</code> and, when available, include the file or inline snippet where the problem originated. Type or runtime failures in the interpreter show up the same way they would via the Gradle tasks.</p>
+<hr />
+<h2>🔹 Tips</h2>
+<ul>
+<li>Use <code>--root</code> when your entry file lives outside the current directory so imports resolve correctly.</li>
+<li>Inline execution (<code>-e</code>) is ideal for quick experiments or regression repros—no temp files necessary.</li>
+<li><code>--run-wasm</code> is currently a thin wrapper around <code>wasmtime</code>. If the command isn’t installed or fails, the CLI prints a helpful hint.</li>
+</ul>
+
+    </div>
+</main>
+</body>
+</html>
