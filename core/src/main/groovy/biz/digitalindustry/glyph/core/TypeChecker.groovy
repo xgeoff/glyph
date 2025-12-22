@@ -39,6 +39,7 @@ import biz.digitalindustry.glyph.core.ast.SumTypeDecl
 import biz.digitalindustry.glyph.core.ast.VarPattern
 import biz.digitalindustry.glyph.core.ast.WildcardPattern
 import biz.digitalindustry.glyph.core.ast.LiteralPattern
+import biz.digitalindustry.glyph.core.ast.VariantDecl
 import biz.digitalindustry.glyph.core.ast.VariantPattern
 import biz.digitalindustry.glyph.core.ast.CapturedVar
 import biz.digitalindustry.glyph.core.SourcePos
@@ -589,11 +590,17 @@ class TypeChecker {
 
     private TypeRef inferMatch(MatchExpr expr, Map<String, TypeRef> env) {
         TypeRef target = inferExpr(expr.target, env)
+        TypeRef baseTarget = (target instanceof NullableType) ? (target as NullableType).inner : target
+        SumTypeRef sumTarget = (target instanceof NullableType) ? null : (baseTarget instanceof SumTypeRef ? baseTarget as SumTypeRef : null)
+        Set<String> matchedVariants = new LinkedHashSet<>()
         TypeRef branchType = null
         boolean hasCatchAll = expr.elseExpr != null
         expr.cases.each { MatchCase c ->
             Map<String, TypeRef> bindings = [:]
             validatePattern(c.pattern, target, bindings, env)
+            if (sumTarget != null && c.pattern instanceof VariantPattern) {
+                matchedVariants.add((c.pattern as VariantPattern).variantName)
+            }
             Map<String, TypeRef> branchEnv = new LinkedHashMap<>(env)
             bindings.each { name, type ->
                 branchEnv[name] = type
@@ -603,6 +610,9 @@ class TypeChecker {
             if (!hasCatchAll && isCatchAllPattern(c.pattern)) {
                 hasCatchAll = true
             }
+        }
+        if (!hasCatchAll && sumTarget != null && isExhaustiveSumMatch(sumTarget, matchedVariants)) {
+            hasCatchAll = true
         }
         if (!hasCatchAll) {
             throw new IllegalArgumentException("match expression requires a wildcard case or else branch${pos(expr.pos)}")
@@ -618,6 +628,22 @@ class TypeChecker {
 
     private boolean isCatchAllPattern(Pattern pattern) {
         pattern instanceof WildcardPattern || pattern instanceof VarPattern
+    }
+
+    private boolean isExhaustiveSumMatch(SumTypeRef sumType, Set<String> matchedVariants) {
+        if (sumType == null || matchedVariants == null || matchedVariants.isEmpty()) {
+            return false
+        }
+        SumTypeDecl decl = sumTypeDefs[sumType.name]
+        if (decl == null) {
+            return false
+        }
+        for (VariantDecl variant : decl.variants) {
+            if (!matchedVariants.contains(variant.name)) {
+                return false
+            }
+        }
+        return true
     }
 
     private TypeRef mergeBranchType(TypeRef current, TypeRef candidate, SourcePos where) {

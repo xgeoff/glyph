@@ -339,6 +339,46 @@ class TypeCheckerTest {
     }
 
     @Test
+    void sumMatchCanOmitElseWhenExhaustive() {
+        def program = parse('''
+            type Result =
+              | Ok(value: int)
+              | Err(message: string)
+
+            fun void main() {
+              val Result value = Ok(5)
+              val int output = match value {
+                Ok(v) -> v
+                Err(_) -> 0
+              }
+              print(output)
+            }
+        ''')
+        new TypeChecker().check(program)
+    }
+
+    @Test
+    void sumMatchWithoutElseMustCoverAllVariants() {
+        def program = parse('''
+            type Result =
+              | Ok(value: int)
+              | Err(message: string)
+
+            fun void main() {
+              val Result value = Ok(5)
+              val int output = match value {
+                Ok(v) -> v
+              }
+              print(output)
+            }
+        ''')
+        def ex = assertThrows(IllegalArgumentException) {
+            new TypeChecker().check(program)
+        }
+        assertTrue(ex.message.contains('match expression requires a wildcard case or else branch'))
+    }
+
+    @Test
     void matchBranchesMustShareType() {
         def program = parse('''
             fun void main() {
