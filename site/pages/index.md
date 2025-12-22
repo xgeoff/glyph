@@ -62,8 +62,8 @@ Glyph is built to:
 
   ```glyph
   val result = match code {
-    200 = "OK"
-    404 = "Not Found"
+    200 -> "OK"
+    404 -> "Not Found"
   } else "Unknown"
 
   val name: string? = null
@@ -135,6 +135,7 @@ Glyph is in **active development**, with a focus on:
 - [Iteration: while & range](iteration-while-range.html)
 - [Map Definition Rules](map-definition-rules.html)
 - [Network I/O](network-io.html)
+- [Pattern Matching](pattern-matching.html)
 - [Primitive Type Mapping](primitive-type-mapping.html)
 - [Project Model](project-model.html)
 - [Project Structure Approach](project-structure-approach.html)

@@ -123,7 +123,13 @@ class GlyphPlugin implements Plugin<Project> {
             }
         }
 
-        ProjectIndex index = ProjectIndexer.index(extension.sourceDir.toPath(), grammarPath)
+        List<Path> libraries = []
+        if (extension.libDir?.exists()) {
+            libraries << extension.libDir.toPath()
+        } else if (extension.libDir) {
+            logger.lifecycle("Configured Glyph stdlib not found at ${extension.libDir}. Continuing without it.")
+        }
+        ProjectIndex index = ProjectIndexer.index(extension.sourceDir.toPath(), grammarPath, libraries)
         Path entryPath = extension.entryFile.toPath().toAbsolutePath().normalize()
         Program program = index.programsByFile[entryPath]
         if (!program) {
@@ -161,12 +167,15 @@ class GlyphPluginExtension {
     File sourceDir
     File entryFile
     File grammarFile
+    File libDir
 
     GlyphPluginExtension(Project project) {
         this.project = project
         this.sourceDir = project.file('src/main/glyph')
         this.entryFile = project.file('src/main/glyph/main.gly')
         this.grammarFile = null
+        File defaultLib = project.rootProject.file('glyph-stdlib/src/main/glyph')
+        this.libDir = defaultLib.exists() ? defaultLib : null
     }
 
     File getSourceFile() {
@@ -187,5 +196,9 @@ class GlyphPluginExtension {
 
     void setGrammarFile(Object file) {
         this.grammarFile = project.file(file)
+    }
+
+    void setLibDir(Object dir) {
+        this.libDir = dir ? project.file(dir) : null
     }
 }

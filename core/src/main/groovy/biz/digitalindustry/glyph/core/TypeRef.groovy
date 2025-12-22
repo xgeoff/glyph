@@ -23,6 +23,11 @@ class RecordType implements TypeRef {
 }
 
 @Canonical
+class SumTypeRef implements TypeRef {
+    String name
+}
+
+@Canonical
 class ArrayType implements TypeRef {
     TypeRef element
 }

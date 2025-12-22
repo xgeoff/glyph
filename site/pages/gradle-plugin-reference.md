@@ -18,6 +18,8 @@ glyph {
     entryFile = file("src/main/glyph/main.gly")
     // optional: use a custom grammar
     grammarFile = file("../grammar/glyph.peg")
+    // optional: point to stdlib sources (defaults to root/glyph-stdlib/src/main/glyph)
+    libDir = file("../glyph-stdlib/src/main/glyph")
 }
 ```
 

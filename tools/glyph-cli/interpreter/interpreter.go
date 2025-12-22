@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"reflect"
 
 	"glyph-cli/ast"
 	"glyph-cli/project"
@@ -28,6 +29,11 @@ type returnSignal struct {
 
 func (r *returnSignal) Error() string {
 	return "return"
+}
+
+type closureValue struct {
+	lambda   *ast.LambdaExpr
+	captured map[string]interface{}
 }
 
 // Eval executes the program using the provided resolved symbols.
@@ -159,6 +165,8 @@ func evalExpr(e ast.Expr, env *environment, st *state) (interface{}, error) {
 		return evalMatch(ex, env, st)
 	case *ast.CallExpr:
 		return evalCall(ex, env, st)
+	case *ast.LambdaExpr:
+		return evalLambda(ex, env)
 	case *ast.BinaryOp:
 		left, err := evalExpr(ex.Left, env, st)
 		if err != nil {
@@ -168,28 +176,63 @@ func evalExpr(e ast.Expr, env *environment, st *state) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		lv, lok := left.(int64)
-		rv, rok := right.(int64)
-		if !lok || !rok {
-			return nil, fmt.Errorf("binary op %s expects ints", ex.Op)
-		}
 		switch ex.Op {
-		case "+":
-			return lv + rv, nil
-		case "-":
-			return lv - rv, nil
-		case "*":
-			return lv * rv, nil
-		case "/":
-			if rv == 0 {
-				return nil, fmt.Errorf("division by zero")
-			}
-			return lv / rv, nil
+		case "+", "-", "*", "/":
+			return numericBinary(left, right, ex.Op)
+		case "<", "<=", ">", ">=":
+			return comparisonBinary(left, right, ex.Op)
+		case "==":
+			return reflect.DeepEqual(left, right), nil
+		case "!=":
+			return !reflect.DeepEqual(left, right), nil
 		default:
 			return nil, fmt.Errorf("unknown operator %s", ex.Op)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", ex)
+	}
+}
+
+func numericBinary(left, right interface{}, op string) (interface{}, error) {
+	lv, lok := left.(int64)
+	rv, rok := right.(int64)
+	if !lok || !rok {
+		return nil, fmt.Errorf("binary op %s expects ints", op)
+	}
+	switch op {
+	case "+":
+		return lv + rv, nil
+	case "-":
+		return lv - rv, nil
+	case "*":
+		return lv * rv, nil
+	case "/":
+		if rv == 0 {
+			return nil, fmt.Errorf("division by zero")
+		}
+		return lv / rv, nil
+	default:
+		return nil, fmt.Errorf("unknown numeric operator %s", op)
+	}
+}
+
+func comparisonBinary(left, right interface{}, op string) (interface{}, error) {
+	lv, lok := left.(int64)
+	rv, rok := right.(int64)
+	if !lok || !rok {
+		return nil, fmt.Errorf("binary op %s expects ints", op)
+	}
+	switch op {
+	case "<":
+		return lv < rv, nil
+	case "<=":
+		return lv <= rv, nil
+	case ">":
+		return lv > rv, nil
+	case ">=":
+		return lv >= rv, nil
+	default:
+		return nil, fmt.Errorf("unknown comparison operator %s", op)
 	}
 }
 
@@ -391,13 +434,18 @@ func evalMatch(expr *ast.MatchExpr, env *environment, st *state) (interface{}, e
 		return nil, err
 	}
 	for _, c := range expr.Cases {
-		key, err := evalExpr(c.Key, env, st)
+		bindings, matched, err := matchPattern(c.Pattern, target, st)
 		if err != nil {
 			return nil, err
 		}
-		if target == key {
-			return evalExpr(c.Value, env, st)
+		if !matched {
+			continue
 		}
+		child := cloneEnv(env)
+		for name, value := range bindings {
+			child.vars[name] = value
+		}
+		return evalExpr(c.Value, child, st)
 	}
 	if expr.ElseExpr != nil {
 		return evalExpr(expr.ElseExpr, env, st)
@@ -462,6 +510,19 @@ func evalBlockValue(block *ast.Block, env *environment, st *state) (interface{},
 }
 
 func evalCall(expr *ast.CallExpr, env *environment, st *state) (interface{}, error) {
+	if val, ok := env.vars[expr.Callee]; ok {
+		if closure, ok := val.(*closureValue); ok {
+			args := make([]interface{}, len(expr.Arguments))
+			for i, argExpr := range expr.Arguments {
+				v, err := evalExpr(argExpr, env, st)
+				if err != nil {
+					return nil, err
+				}
+				args[i] = v
+			}
+			return invokeClosure(closure, args, st)
+		}
+	}
 	fn, ok := st.functions[expr.Callee]
 	if !ok {
 		return nil, fmt.Errorf("unknown function %s", expr.Callee)
@@ -475,4 +536,103 @@ func evalCall(expr *ast.CallExpr, env *environment, st *state) (interface{}, err
 		args[i] = val
 	}
 	return invokeFunction(fn, args, st)
+}
+
+func cloneEnv(env *environment) *environment {
+	copyEnv := &environment{vars: make(map[string]interface{}, len(env.vars))}
+	for k, v := range env.vars {
+		copyEnv.vars[k] = v
+	}
+	return copyEnv
+}
+
+func evalLambda(expr *ast.LambdaExpr, env *environment) (interface{}, error) {
+	captured := make(map[string]interface{}, len(env.vars))
+	for k, v := range env.vars {
+		captured[k] = v
+	}
+	return &closureValue{lambda: expr, captured: captured}, nil
+}
+
+func invokeClosure(closure *closureValue, args []interface{}, st *state) (interface{}, error) {
+	if len(closure.lambda.Params) != len(args) {
+		return nil, fmt.Errorf("callable expects %d argument(s) but received %d", len(closure.lambda.Params), len(args))
+	}
+	child := &environment{vars: make(map[string]interface{})}
+	for k, v := range closure.captured {
+		child.vars[k] = v
+	}
+	for i, param := range closure.lambda.Params {
+		child.vars[param.Name] = args[i]
+	}
+	val, err := evalBlockValue(closure.lambda.Body, child, st)
+	if ret, ok := err.(*returnSignal); ok {
+		return ret.value, nil
+	}
+	return val, err
+}
+
+func matchPattern(pattern ast.Pattern, value interface{}, st *state) (map[string]interface{}, bool, error) {
+	switch p := pattern.(type) {
+	case *ast.WildcardPattern:
+		return map[string]interface{}{}, true, nil
+	case *ast.VarPattern:
+		return map[string]interface{}{p.Name: value}, true, nil
+	case *ast.LiteralPattern:
+		expected, err := literalValue(p.Literal)
+		if err != nil {
+			return nil, false, err
+		}
+		if reflect.DeepEqual(value, expected) {
+			return map[string]interface{}{}, true, nil
+		}
+		return nil, false, nil
+	case *ast.RecordPattern:
+		return matchRecordPattern(p, value, st)
+	default:
+		return nil, false, fmt.Errorf("unsupported pattern %T", pattern)
+	}
+}
+
+func matchRecordPattern(pattern *ast.RecordPattern, value interface{}, st *state) (map[string]interface{}, bool, error) {
+	rec, ok := value.(*recordInstance)
+	if !ok {
+		return nil, false, nil
+	}
+	if rec.name != pattern.TypeName {
+		return nil, false, nil
+	}
+	bindings := map[string]interface{}{}
+	for _, fieldPattern := range pattern.Fields {
+		fieldValue, exists := rec.fields[fieldPattern.Field]
+		if !exists {
+			return nil, false, nil
+		}
+		nested, matched, err := matchPattern(fieldPattern.Pattern, fieldValue, st)
+		if err != nil {
+			return nil, false, err
+		}
+		if !matched {
+			return nil, false, nil
+		}
+		for k, v := range nested {
+			bindings[k] = v
+		}
+	}
+	return bindings, true, nil
+}
+
+func literalValue(expr ast.Expr) (interface{}, error) {
+	switch lit := expr.(type) {
+	case *ast.IntLiteral:
+		return lit.Value, nil
+	case *ast.StringLiteral:
+		return lit.Value, nil
+	case *ast.BoolLiteral:
+		return lit.Value, nil
+	case *ast.NullLiteral:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("invalid literal pattern %T", expr)
+	}
 }

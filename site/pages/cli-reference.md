@@ -31,6 +31,7 @@ glyph-cli [options] [file.gly]
 | `--root <dir>`    | Project root directory (defaults to the source file’s directory)           |
 | `-e "<code>"`     | Execute inline Glyph code without creating a file                          |
 | `--run-wasm`      | Run the compiled `.wasm` via `wasmtime` (requires `--file path/to/main.wasm`) |
+| `--libpath <dir>` | Override the standard library search path                                  |
 | `--help`, `-h`    | Display usage and exit                                                      |
 
 ### Examples

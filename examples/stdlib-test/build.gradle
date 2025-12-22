@@ -1,0 +1,9 @@
+plugins {
+    id 'biz.digitalindustry.glyph'
+}
+
+glyph {
+    sourceDir = file('src/main/glyph')
+    entryFile = file('src/main/glyph/com/example/stdlib/main.gly')
+    libDir = file('../../glyph-stdlib/src/main/glyph')
+}

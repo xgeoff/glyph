@@ -1,0 +1,24 @@
+package std.strings
+
+// Placeholder implementations written entirely in Glyph.
+// These will be replaced by host-backed routines once the runtime exposes them.
+
+fun int length(string s) {
+  if s == "" {
+    0
+  } else {
+    1
+  }
+}
+
+fun bool isEmpty(string s) {
+  s == ""
+}
+
+fun string toUpper(string s) {
+  s
+}
+
+fun string toLower(string s) {
+  s
+}

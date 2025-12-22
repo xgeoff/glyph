@@ -8,15 +8,15 @@ fun [string:int] roleWeights() {
 
 fun string describeRole(string role) {
   match role {
-    "ops" = "Operations"
-    "ml" = "Applied ML"
-    "growth" = "Growth"
+    "ops" -> "Operations"
+    "ml" -> "Applied ML"
+    "growth" -> "Growth"
   } else "Generalist"
 }
 
 fun bool isLeadRole(string role) {
   match role {
-    "ops" = true
-    "ml" = true
+    "ops" -> true
+    "ml" -> true
   } else false
 }

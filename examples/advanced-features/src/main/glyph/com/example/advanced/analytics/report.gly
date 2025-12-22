@@ -9,8 +9,8 @@ fun Scorecard buildScorecard(User user, [string:int] weights) {
   val int bias = weights[user.role]
   val int total = bias + sumScores(user.scores)
   val string tier = match user.role {
-    "ops" = "ops-vanguard"
-    "ml" = "ml-researcher"
+    "ops" -> "ops-vanguard"
+    "ml" -> "ml-researcher"
   } else "builder"
 
   Scorecard {

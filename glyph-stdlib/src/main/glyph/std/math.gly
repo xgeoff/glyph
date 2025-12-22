@@ -1,0 +1,21 @@
+package std.math
+
+fun int abs(int x) {
+  if x < 0 {
+    0 - x
+  } else {
+    x
+  }
+}
+
+fun int clamp(int x, int minValue, int maxValue) {
+  if x < minValue {
+    minValue
+  } else {
+    if x > maxValue {
+      maxValue
+    } else {
+      x
+    }
+  }
+}

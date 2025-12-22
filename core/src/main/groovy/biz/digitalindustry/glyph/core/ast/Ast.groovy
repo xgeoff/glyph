@@ -2,12 +2,15 @@ package biz.digitalindustry.glyph.core.ast
 
 import groovy.transform.Canonical
 import biz.digitalindustry.glyph.core.SourcePos
+import biz.digitalindustry.glyph.core.TypeRef
 
 @Canonical
 class Program {
     PackageDecl packageDecl
     List<ImportDecl> imports = []
+    List<TypeAliasDecl> typeAliases = []
     List<RecordDecl> records = []
+    List<SumTypeDecl> sumTypes = []
     List<FunctionDecl> functions = []
 }
 
@@ -20,6 +23,34 @@ class PackageDecl {
 @Canonical
 class ImportDecl {
     String path
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class TypeAliasDecl {
+    String name
+    String targetType
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class SumTypeDecl {
+    String name
+    List<VariantDecl> variants = []
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class VariantDecl {
+    String name
+    List<VariantField> fields = []
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class VariantField {
+    String name
+    String type
     SourcePos pos = SourcePos.UNKNOWN
 }
 
@@ -146,7 +177,15 @@ class LambdaExpr implements Expr {
     List<Param> params = []
     Block body
     String returnType
+    List<CapturedVar> captures = []
+    String resolvedReturnType
     SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class CapturedVar {
+    String name
+    TypeRef type
 }
 
 @Canonical
@@ -174,7 +213,7 @@ class ElvisExpr implements Expr {
 
 @Canonical
 class MatchCase {
-    Expr key
+    Pattern pattern
     Expr value
     SourcePos pos = SourcePos.UNKNOWN
 }
@@ -184,6 +223,49 @@ class MatchExpr implements Expr {
     Expr target
     List<MatchCase> cases = []
     Expr elseExpr
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+interface Pattern {
+    SourcePos getPos()
+}
+
+@Canonical
+class WildcardPattern implements Pattern {
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class VarPattern implements Pattern {
+    String name
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class LiteralPattern implements Pattern {
+    Expr literal
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class RecordFieldPattern {
+    String field
+    Pattern pattern
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class RecordPattern implements Pattern {
+    String typeName
+    List<RecordFieldPattern> fields = []
+    SourcePos pos = SourcePos.UNKNOWN
+}
+
+@Canonical
+class VariantPattern implements Pattern {
+    String typeName
+    String variantName
+    List<Pattern> fields = []
     SourcePos pos = SourcePos.UNKNOWN
 }
 

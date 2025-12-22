@@ -14,25 +14,36 @@ import biz.digitalindustry.glyph.core.ast.FunctionDecl
 import biz.digitalindustry.glyph.core.ast.IfExpr
 import biz.digitalindustry.glyph.core.ast.IndexAccess
 import biz.digitalindustry.glyph.core.ast.IntLiteral
+import biz.digitalindustry.glyph.core.ast.LambdaExpr
+import biz.digitalindustry.glyph.core.ast.CapturedVar
 import biz.digitalindustry.glyph.core.ast.MapAllocExpr
 import biz.digitalindustry.glyph.core.ast.MapLiteralExpr
 import biz.digitalindustry.glyph.core.ast.MatchCase
 import biz.digitalindustry.glyph.core.ast.MatchExpr
+import biz.digitalindustry.glyph.core.ast.Pattern
 import biz.digitalindustry.glyph.core.ast.PrintStmt
 import biz.digitalindustry.glyph.core.ast.Program
 import biz.digitalindustry.glyph.core.ast.RecordLiteral
 import biz.digitalindustry.glyph.core.ast.RecordDecl
+import biz.digitalindustry.glyph.core.ast.RecordFieldPattern
+import biz.digitalindustry.glyph.core.ast.RecordPattern
+import biz.digitalindustry.glyph.core.ast.SumTypeDecl
 import biz.digitalindustry.glyph.core.ast.ReturnStmt
 import biz.digitalindustry.glyph.core.ast.NullLiteral
 import biz.digitalindustry.glyph.core.ast.SafeFieldAccess
 import biz.digitalindustry.glyph.core.ast.Statement
 import biz.digitalindustry.glyph.core.ast.StringLiteral
 import biz.digitalindustry.glyph.core.ast.TernaryExpr
+import biz.digitalindustry.glyph.core.ast.VarPattern
 import biz.digitalindustry.glyph.core.ast.VarDecl
 import biz.digitalindustry.glyph.core.ast.VarRef
+import biz.digitalindustry.glyph.core.ast.VariantPattern
+import biz.digitalindustry.glyph.core.ast.WildcardPattern
+import biz.digitalindustry.glyph.core.ast.LiteralPattern
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * WASM compiler capable of emitting modules for the current Glyph feature set.
@@ -77,17 +88,25 @@ class WasmModuleWriter {
     private final WasmTypeSectionBuilder typeSection = new WasmTypeSectionBuilder()
     private final List<RuntimeImport> runtimeImports
     private final Map<String, RuntimeImport> runtimeImportMap
+    private final SumTypeRegistry sumTypeRegistry
     private final List<FunctionContext> functionContexts
     private final Map<FunctionDecl, FunctionContext> contextByDecl
+    private final Map<LambdaExpr, FunctionContext> contextByLambda
     private final FunctionContext entryContext
+    private final ClosureSignatureRegistry closureSignatures = new ClosureSignatureRegistry()
+    private final boolean needsTable
+    private int lambdaCounter = 0
 
     WasmModuleWriter(ProjectIndex index, Program entryProgram) {
         this.index = index
         this.entryProgram = entryProgram
         this.resolver = new SymbolResolver(index)
+        this.sumTypeRegistry = new SumTypeRegistry()
         Tuple2<List<FunctionContext>, Map<FunctionDecl, FunctionContext>> tuple = buildFunctionContexts()
         this.functionContexts = tuple.v1
         this.contextByDecl = tuple.v2
+        this.contextByLambda = registerLambdaContexts()
+        this.needsTable = !contextByLambda.isEmpty()
         this.runtimeImports = RuntimeImports.all(VAL_I32)
         this.runtimeImportMap = runtimeImports.collectEntries { [(it.name): it] }
         this.entryContext = locateEntryContext()
@@ -109,6 +128,10 @@ class WasmModuleWriter {
             writeVec(it, indices)
         }
 
+        if (needsTable) {
+            writeTableSection(out)
+        }
+
         writeSection(out, 5) {
             byte[] limits = [(byte) 0x00, (byte) 0x01] as byte[]
             writeVec(it, [limits])
@@ -118,6 +141,10 @@ class WasmModuleWriter {
         writeSection(out, 7) {
             List<byte[]> exports = exportSpecs.collect { exportEntry(it.name, it.kind, it.index) }
             writeVec(it, exports)
+        }
+
+        if (needsTable) {
+            writeElementSection(out)
         }
 
         List<WasmFunctionBody> bodies = emitFunctionBodies()
@@ -133,38 +160,38 @@ class WasmModuleWriter {
 
     String buildWat() {
         StringBuilder sb = new StringBuilder()
-        sb.appendLine('(module')
+        sb.append('(module\n')
         runtimeImports.each {
-            sb.appendLine(formatImportWat(it))
+            sb.append(formatImportWat(it)).append('\n')
         }
-        sb.appendLine('  (memory $memory 1)')
+        sb.append('  (memory $memory 1)\n')
         collectExports().each { ExportSpec spec ->
             if (spec.kind == 0x02) {
-                sb.appendLine("  (export \"${spec.name}\" (memory $memory))")
+                sb.append("  (export \"${spec.name}\" (memory \$memory))\n")
             } else {
-                sb.appendLine("  (export \"${spec.name}\" (func ${spec.context.watName}))")
+                sb.append("  (export \"${spec.name}\" (func ${spec.context.watName}))\n")
             }
         }
 
         emitFunctionBodies().each { body ->
-            sb.appendLine("  (func ${body.watName}${body.watSignature}")
-            body.localDecls.each { sb.appendLine("    ${it}") }
-            body.watInstructions.each { sb.appendLine("    ${it}") }
-            sb.appendLine('  )')
+            sb.append("  (func ${body.watName}${body.watSignature}\n")
+            body.localDecls.each { sb.append("    ${it}\n") }
+            body.watInstructions.each { sb.append("    ${it}\n") }
+            sb.append('  )\n')
         }
 
         stringPool.entries.each { entry ->
             String escaped = entry.bytes.collect { String.format("\\%02x", it & 0xff) }.join('')
-            sb.appendLine("  (data (i32.const ${entry.offset}) \"${escaped}\")")
+            sb.append("  (data (i32.const ${entry.offset}) \"${escaped}\")\n")
         }
-        sb.appendLine(')')
+        sb.append(')')
         return sb.toString()
     }
 
     private List<ExportSpec> collectExports() {
         List<ExportSpec> specs = []
         specs << new ExportSpec('memory', (byte) 0x02, 0, null)
-        functionContexts.each { ctx ->
+        functionContexts.findAll { !it.isLambda() }.each { ctx ->
             specs << new ExportSpec(ctx.decl.name ?: ctx.fqn, (byte) 0x00, ctx.functionIndex, ctx)
         }
         if (entryContext && entryContext.decl?.name?.equalsIgnoreCase('main')) {
@@ -186,6 +213,9 @@ class WasmModuleWriter {
             byte[] params = ctx.paramTypes as byte[]
             byte[] results = ctx.returnKind == GlyphValueKind.VOID ? [] as byte[] : [VAL_I32] as byte[]
             ctx.typeIndex = typeSection.register(params, results)
+            if (ctx.closureSignature != null) {
+                ctx.closureSignature.typeIndex = ctx.typeIndex
+            }
         }
         return typeSection.entries
     }
@@ -211,8 +241,10 @@ class WasmModuleWriter {
                     ctx,
                     stringPool,
                     contextByDecl,
+                    contextByLambda,
                     recordLayouts,
-                    runtimeImportMap
+                    runtimeImportMap,
+                    sumTypeRegistry
             )
             bodies << emitter.emitBody()
         }
@@ -229,6 +261,7 @@ class WasmModuleWriter {
         Map<FunctionDecl, FunctionContext> byDecl = [:]
         programs.each { Program program ->
             ResolvedSymbols symbols = resolver.resolve(program)
+            sumTypeRegistry.registerSymbols(symbols, program)
             String pkg = symbols.packageName ?: ''
             program.functions.each { FunctionDecl fn ->
                 String fqn = ProjectIndexer.qualify(pkg, fn.name)
@@ -241,6 +274,124 @@ class WasmModuleWriter {
         return new Tuple2<>(contexts, byDecl)
     }
 
+    private Map<LambdaExpr, FunctionContext> registerLambdaContexts() {
+        Map<LambdaExpr, FunctionContext> lambdaMap = [:]
+        List<FunctionContext> lambdaContexts = []
+        functionContexts.each { FunctionContext ctx ->
+            lambdaContexts.addAll(collectLambdaContexts(ctx, lambdaMap))
+        }
+        functionContexts.addAll(lambdaContexts)
+        return lambdaMap
+    }
+
+    private List<FunctionContext> collectLambdaContexts(FunctionContext owner,
+                                                        Map<LambdaExpr, FunctionContext> lambdaMap) {
+        List<FunctionContext> contexts = []
+        LambdaCollector.collect(owner) { LambdaExpr expr ->
+            ClosureLayout layout = buildClosureLayout(expr)
+            ClosureSignature signature = closureSignatures.signatureFor(expr)
+            String name = "${owner.fqn}\$lambda${lambdaCounter++}"
+            FunctionContext lambdaCtx = FunctionContext.lambdaContext(
+                    name,
+                    expr,
+                    owner.symbols,
+                    owner.pkg,
+                    owner,
+                    layout,
+                    signature
+            )
+            lambdaMap[expr] = lambdaCtx
+            contexts << lambdaCtx
+            contexts.addAll(collectLambdaContexts(lambdaCtx, lambdaMap))
+        }
+        return contexts
+    }
+
+    private ClosureLayout buildClosureLayout(LambdaExpr expr) {
+        if (!expr?.captures) {
+            return ClosureLayout.empty()
+        }
+        int offset = 0
+        List<CapturedFieldLayout> fields = []
+        expr.captures.each { CapturedVar cap ->
+            offset = HeapLayout.align(offset)
+            WasmValueType type = wasmValueForCapture(cap.type)
+            fields << new CapturedFieldLayout(cap.name, offset, type)
+            offset += HeapLayout.POINTER_SIZE
+        }
+        offset = HeapLayout.align(offset)
+        return new ClosureLayout(fields, offset)
+    }
+
+    private WasmValueType wasmValueForCapture(TypeRef typeRef) {
+        if (typeRef == null) {
+            return WasmValueType.pointer(null)
+        }
+        if (typeRef instanceof PrimitiveType) {
+            PrimitiveType primitive = typeRef as PrimitiveType
+            switch (primitive.type) {
+                case Type.INT:
+                case Type.BOOL:
+                case Type.LONG:
+                case Type.FLOAT:
+                case Type.DOUBLE:
+                case Type.CHAR:
+                    return WasmValueType.i32()
+                case Type.STRING:
+                    return WasmValueType.stringType()
+                default:
+                    return WasmValueType.pointer(null)
+            }
+        }
+        if (typeRef instanceof NullableType) {
+            return WasmValueType.pointer(null)
+        }
+        if (typeRef instanceof RecordType) {
+            return WasmValueType.pointer((typeRef as RecordType).name)
+        }
+        if (typeRef instanceof ArrayType) {
+            return WasmValueType.arrayPointer(typeName((typeRef as ArrayType).element))
+        }
+        if (typeRef instanceof MapType) {
+            MapType map = typeRef as MapType
+            return WasmValueType.mapPointer(typeName(map.key), typeName(map.value))
+        }
+        if (typeRef instanceof LambdaType) {
+            LambdaType lambda = typeRef as LambdaType
+            List<String> params = lambda.parameters.collect { typeName(it.type) }
+            String ret = typeName(lambda.returnType) ?: 'void'
+            ClosureSignature signature = closureSignatures.signatureForTypes(params, ret)
+            return WasmValueType.closure(signature)
+        }
+        return WasmValueType.pointer(null)
+    }
+
+    private static String typeName(TypeRef ref) {
+        if (ref == null) return ''
+        if (ref instanceof PrimitiveType) {
+            return (ref as PrimitiveType).type.name().toLowerCase()
+        }
+        if (ref instanceof NullableType) {
+            return "${typeName((ref as NullableType).inner)}?"
+        }
+        if (ref instanceof RecordType) {
+            return (ref as RecordType).name
+        }
+        if (ref instanceof ArrayType) {
+            return "[${typeName((ref as ArrayType).element)}]"
+        }
+        if (ref instanceof MapType) {
+            MapType map = ref as MapType
+            return "[${typeName(map.key)}:${typeName(map.value)}]"
+        }
+        if (ref instanceof LambdaType) {
+            LambdaType lambda = ref as LambdaType
+            String params = lambda.parameters.collect { typeName(it.type) }.join(', ')
+            return "(${params}) -> ${typeName(lambda.returnType)}"
+        }
+        return ''
+    }
+
     private FunctionContext locateEntryContext() {
         String pkg = entryProgram.packageDecl?.name ?: ''
         String entryFqn = ProjectIndexer.qualify(pkg, 'main')
@@ -251,7 +402,10 @@ class WasmModuleWriter {
 
     private void assignFunctionIndices() {
         int importCount = runtimeImports.size()
-        functionContexts.eachWithIndex { ctx, idx -> ctx.functionIndex = importCount + idx }
+        functionContexts.eachWithIndex { ctx, idx ->
+            ctx.functionIndex = importCount + idx
+            ctx.tableIndex = idx
+        }
     }
 
     private static void writeSection(ByteArrayOutputStream out, int id, Closure<ByteArrayOutputStream> bodyWriter) {
@@ -274,6 +428,28 @@ class WasmModuleWriter {
         b.write((byte) kind)
         writeU32(b, index)
         return b.toByteArray()
+    }
+
+    private void writeTableSection(ByteArrayOutputStream out) {
+        writeSection(out, 4) {
+            writeU32(it, 1)
+            it.write((byte) 0x70)
+            it.write((byte) 0x00)
+            writeU32(it, functionContexts.size())
+        }
+    }
+
+    private void writeElementSection(ByteArrayOutputStream out) {
+        writeSection(out, 9) {
+            ByteArrayOutputStream segment = new ByteArrayOutputStream()
+            segment.write((byte) 0x00)
+            segment.write((byte) 0x41)
+            writeU32(segment, 0)
+            segment.write((byte) 0x0b)
+            List<byte[]> functionIndices = functionContexts.collect { encU32(it.functionIndex) }
+            writeVec(segment, functionIndices)
+            writeVec(it, [segment.toByteArray()])
+        }
     }
 
     static void writeString(ByteArrayOutputStream out, String value) {
@@ -318,29 +494,38 @@ class WasmModuleWriter {
 }
 
 class WasmFunctionEmitter {
+    private static final int CLOSURE_FUNC_OFFSET = 0
+    private static final int CLOSURE_ENV_OFFSET = HeapLayout.POINTER_SIZE
+    private static final int CLOSURE_SIZE = HeapLayout.POINTER_SIZE * 2
     private final FunctionContext context
     private final WasmStringPool stringPool
     private final Map<FunctionDecl, FunctionContext> contextByDecl
+    private final Map<LambdaExpr, FunctionContext> lambdaContexts
     private final RecordLayoutCache recordLayouts
     private final Map<String, RuntimeImport> runtimeImports
+    private final SumTypeRegistry sumTypeRegistry
 
     WasmFunctionEmitter(FunctionContext context,
                         WasmStringPool stringPool,
                         Map<FunctionDecl, FunctionContext> contextByDecl,
+                        Map<LambdaExpr, FunctionContext> lambdaContexts,
                         RecordLayoutCache recordLayouts,
-                        Map<String, RuntimeImport> runtimeImports) {
+                        Map<String, RuntimeImport> runtimeImports,
+                        SumTypeRegistry sumTypeRegistry) {
         this.context = context
         this.stringPool = stringPool
         this.contextByDecl = contextByDecl
+        this.lambdaContexts = lambdaContexts
         this.recordLayouts = recordLayouts
         this.runtimeImports = runtimeImports
+        this.sumTypeRegistry = sumTypeRegistry
     }
 
     WasmFunctionBody emitBody() {
         WasmInstructionEmitter emitter = new WasmInstructionEmitter(context.watName)
         LocalBindings locals = LocalBindings.fromParams(context)
 
-        context.decl.body?.statements?.each { Statement stmt ->
+        context.statements().each { Statement stmt ->
             emitStatement(stmt, emitter, locals)
         }
         emitter.end()
@@ -437,16 +622,13 @@ class WasmFunctionEmitter {
                 int offset = stringPool.intern(expr.value)
                 emitter.i32Const(offset)
                 return WasmValueType.stringType()
+            case NullLiteral:
+                emitter.i32Const(0)
+                return WasmValueType.pointer(null)
             case VarRef:
-                ensureLocal(expr.name, locals, expr.pos?.line)
-                LocalBinding binding = locals.binding(expr.name)
-                emitter.localGet(binding.index, binding.name)
-                return binding.type
+                return emitVariableLoad(expr.name, emitter, locals, expr.pos?.line)
             case BinaryOp:
-                emitExpr(expr.left, emitter, locals)
-                emitExpr(expr.right, emitter, locals)
-                emitter.binary(expr.op)
-                return WasmValueType.i32()
+                return emitBinary(expr as BinaryOp, emitter, locals)
             case CallExpr:
                 return emitCall(expr, emitter, locals)
             case RecordLiteral:
@@ -471,15 +653,24 @@ class WasmFunctionEmitter {
                 return emitMatch(expr, emitter, locals)
             case IfExpr:
                 return emitIfExpr(expr, emitter, locals)
-            case NullLiteral:
-                emitter.i32Const(0)
-                return WasmValueType.pointer(null)
+            case LambdaExpr:
+                return emitLambda(expr as LambdaExpr, emitter, locals)
             default:
                 throw new IllegalStateException("Unsupported expression ${expr?.class?.simpleName}")
         }
     }
 
     private WasmValueType emitCall(CallExpr expr, WasmInstructionEmitter emitter, LocalBindings locals) {
+        if (locals.has(expr.callee)) {
+            LocalBinding binding = locals.binding(expr.callee)
+            if (binding.type?.closureSignature) {
+                return emitClosureCall(binding, expr.arguments, emitter, locals)
+            }
+        }
+        VariantRuntime variant = sumTypeRegistry.variant(expr.callee)
+        if (variant) {
+            return emitVariantConstructor(expr, variant, emitter, locals)
+        }
         FunctionDecl target = context.symbols.function(expr.callee)
         if (!target) throw new IllegalStateException("Unknown function ${expr.callee}")
         FunctionContext targetCtx = contextByDecl[target]
@@ -613,6 +804,113 @@ class WasmFunctionEmitter {
         return mapType
     }
 
+    private WasmValueType emitLambda(LambdaExpr expr, WasmInstructionEmitter emitter, LocalBindings locals) {
+        FunctionContext lambdaCtx = lambdaContexts[expr]
+        if (!lambdaCtx) {
+            throw new IllegalStateException("Lambda context not registered in ${context.fqn}")
+        }
+        ClosureLayout layout = lambdaCtx.closureLayout ?: ClosureLayout.empty()
+        RuntimeImport malloc = runtimeImports['glyph_malloc']
+
+        LocalBinding envPtr = locals.declareTemp(WasmValueType.pointer(null), '_lambdaEnv')
+        if (layout.totalSize > 0) {
+            emitter.i32Const(layout.totalSize)
+            emitter.callImport(malloc)
+            emitter.localSet(envPtr.index, envPtr.name)
+            layout.fields.each { CapturedFieldLayout field ->
+                emitter.localGet(envPtr.index, envPtr.name)
+                if (field.offset != 0) {
+                    emitter.i32Const(field.offset)
+                    emitter.binary('+')
+                }
+                emitVariableLoad(field.name, emitter, locals, null)
+                emitter.storeI32()
+            }
+        } else {
+            emitter.i32Const(0)
+            emitter.localSet(envPtr.index, envPtr.name)
+        }
+
+        emitter.i32Const(CLOSURE_SIZE)
+        emitter.callImport(malloc)
+        LocalBinding closurePtr = locals.declareTemp(WasmValueType.closure(lambdaCtx.closureSignature), '_closure')
+        emitter.localSet(closurePtr.index, closurePtr.name)
+
+        emitter.localGet(closurePtr.index, closurePtr.name)
+        emitter.i32Const(lambdaCtx.tableIndex)
+        emitter.storeI32()
+
+        emitter.localGet(closurePtr.index, closurePtr.name)
+        if (CLOSURE_ENV_OFFSET != 0) {
+            emitter.i32Const(CLOSURE_ENV_OFFSET)
+            emitter.binary('+')
+        }
+        emitter.localGet(envPtr.index, envPtr.name)
+        emitter.storeI32()
+
+        emitter.localGet(closurePtr.index, closurePtr.name)
+        return WasmValueType.closure(lambdaCtx.closureSignature)
+    }
+
+    private WasmValueType emitClosureCall(LocalBinding binding,
+                                          List<Expr> arguments,
+                                          WasmInstructionEmitter emitter,
+                                          LocalBindings locals) {
+        ClosureSignature signature = binding.type?.closureSignature
+        if (signature == null) {
+            throw new IllegalStateException("Closure signature missing for ${binding.name} in ${context.fqn}")
+        }
+
+        emitter.localGet(binding.index, binding.name)
+        if (CLOSURE_ENV_OFFSET != 0) {
+            emitter.i32Const(CLOSURE_ENV_OFFSET)
+            emitter.binary('+')
+        }
+        emitter.loadI32()
+
+        arguments.each { emitExpr(it, emitter, locals) }
+
+        emitter.localGet(binding.index, binding.name)
+        emitter.loadI32()
+        emitter.callIndirect(signature.typeIndex)
+        return signature.returnType
+    }
+
+    private WasmValueType emitVariableLoad(String name,
+                                           WasmInstructionEmitter emitter,
+                                           LocalBindings locals,
+                                           Integer line) {
+        if (locals.has(name)) {
+            LocalBinding binding = locals.binding(name)
+            emitter.localGet(binding.index, binding.name)
+            return binding.type
+        }
+        if (context.isLambda() && context.closureLayout?.hasField(name)) {
+            return emitCaptureLoad(name, emitter, locals)
+        }
+        ensureLocal(name, locals, line)
+        LocalBinding binding = locals.binding(name)
+        emitter.localGet(binding.index, binding.name)
+        return binding.type
+    }
+
+    private WasmValueType emitCaptureLoad(String name,
+                                          WasmInstructionEmitter emitter,
+                                          LocalBindings locals) {
+        if (!context.isLambda() || !context.closureLayout) {
+            throw new IllegalStateException("Capture ${name} not available in ${context.fqn}")
+        }
+        CapturedFieldLayout field = context.closureLayout.field(name)
+        LocalBinding env = locals.binding(context.envParamName)
+        emitter.localGet(env.index, env.name)
+        if (field.offset != 0) {
+            emitter.i32Const(field.offset)
+            emitter.binary('+')
+        }
+        emitter.loadI32()
+        return field.type
+    }
+
     private WasmValueType emitIfExpr(IfExpr expr, WasmInstructionEmitter emitter, LocalBindings locals) {
         if (!expr.thenBlock || !expr.elseBlock) {
             throw new IllegalStateException("if expression must include then/else blocks in ${context.fqn}")
@@ -677,10 +975,93 @@ class WasmFunctionEmitter {
         return leftType
     }
 
-    private WasmValueType emitMatch(MatchExpr expr, WasmInstructionEmitter emitter, LocalBindings locals) {
-        if (!expr.elseExpr) {
-            throw new IllegalStateException("match expression requires else branch in ${context.fqn}")
+    private WasmValueType emitBinary(BinaryOp expr, WasmInstructionEmitter emitter, LocalBindings locals) {
+        WasmValueType leftType = emitExpr(expr.left, emitter, locals)
+        WasmValueType rightType = emitExpr(expr.right, emitter, locals)
+        switch (expr.op) {
+            case '+':
+            case '-':
+            case '*':
+            case '/':
+                emitter.binary(expr.op)
+                return WasmValueType.i32()
+            case '<':
+                emitter.i32Lt()
+                return WasmValueType.i32()
+            case '<=':
+                emitter.i32Le()
+                return WasmValueType.i32()
+            case '>':
+                emitter.i32Gt()
+                return WasmValueType.i32()
+            case '>=':
+                emitter.i32Ge()
+                return WasmValueType.i32()
+            case '==':
+                emitEquality(leftType, rightType, emitter, false)
+                return WasmValueType.i32()
+            case '!=':
+                emitEquality(leftType, rightType, emitter, true)
+                return WasmValueType.i32()
+            default:
+                throw new IllegalStateException("Unsupported operator ${expr.op} in ${context.fqn}")
         }
+    }
+
+    private WasmValueType emitVariantConstructor(CallExpr expr,
+                                                 VariantRuntime variant,
+                                                 WasmInstructionEmitter emitter,
+                                                 LocalBindings locals) {
+        int expectedArgs = variant.fieldTypes.size()
+        if (expr.arguments.size() != expectedArgs) {
+            throw new IllegalStateException("Constructor ${variant.variantName} expects ${expectedArgs} argument(s) but received ${expr.arguments.size()} in ${context.fqn}")
+        }
+        RuntimeImport malloc = runtimeImports['glyph_malloc']
+        emitter.i32Const(variant.totalSize)
+        emitter.callImport(malloc)
+        WasmValueType pointerType = WasmValueType.pointer(variant.sumTypeName)
+        LocalBinding ptr = locals.declareTemp(pointerType, '_variant')
+        emitter.localSet(ptr.index, ptr.name)
+
+        // tag
+        emitter.localGet(ptr.index, ptr.name)
+        emitter.i32Const(variant.tag)
+        emitter.storeI32()
+
+        variant.fieldTypes.eachWithIndex { String typeName, int idx ->
+            emitter.localGet(ptr.index, ptr.name)
+            int offset = HeapLayout.POINTER_SIZE * (idx + 1)
+            if (offset != 0) {
+                emitter.i32Const(offset)
+                emitter.binary('+')
+            }
+            emitExpr(expr.arguments[idx], emitter, locals)
+            emitter.storeI32()
+        }
+
+        emitter.localGet(ptr.index, ptr.name)
+        return pointerType
+    }
+
+    private void emitEquality(WasmValueType leftType,
+                              WasmValueType rightType,
+                              WasmInstructionEmitter emitter,
+                              boolean negate) {
+        if (isStringType(leftType) && isStringType(rightType)) {
+            emitter.callImport(runtimeImports['str_eq'])
+            if (negate) {
+                emitter.i32Eqz()
+            }
+            return
+        }
+        if (negate) {
+            emitter.i32Ne()
+        } else {
+            emitter.i32Eq()
+        }
+    }
+
+    private WasmValueType emitMatch(MatchExpr expr, WasmInstructionEmitter emitter, LocalBindings locals) {
         WasmValueType targetType = emitExpr(expr.target, emitter, locals)
         LocalBinding temp = locals.declareTemp(targetType, '_match')
         emitter.localSet(temp.index, temp.name)
@@ -695,33 +1076,225 @@ class WasmFunctionEmitter {
                                          WasmInstructionEmitter emitter,
                                          LocalBindings locals) {
         if (idx >= cases.size()) {
-            if (!elseExpr) {
-                throw new IllegalStateException("match expression requires else branch in ${context.fqn}")
+            if (elseExpr) {
+                return emitExpr(elseExpr, emitter, locals)
             }
-            return emitExpr(elseExpr, emitter, locals)
+            throw new IllegalStateException("match expression missing fallback in ${context.fqn}")
         }
         MatchCase current = cases[idx]
-        emitMatchCondition(current, temp, targetType, emitter, locals)
+        boolean lastCase = idx == cases.size() - 1 && elseExpr == null
+        if (lastCase && isCatchAllPattern(current.pattern)) {
+            LocalBindings branchLocals = locals.fork()
+            emitPatternBindings(current.pattern, temp, targetType, emitter, branchLocals)
+            return emitExpr(current.value, emitter, branchLocals)
+        }
+        emitPatternCondition(current.pattern, temp, targetType, emitter, locals)
         emitter.ifOp(true)
-        WasmValueType caseType = emitExpr(current.value, emitter, locals)
+        LocalBindings branchLocals = locals.fork()
+        emitPatternBindings(current.pattern, temp, targetType, emitter, branchLocals)
+        WasmValueType caseType = emitExpr(current.value, emitter, branchLocals)
         emitter.elseOp()
         WasmValueType nextType = emitMatchChain(cases, idx + 1, temp, targetType, elseExpr, emitter, locals)
         emitter.end()
         return caseType ?: nextType
     }
 
-    private void emitMatchCondition(MatchCase matchCase,
-                                    LocalBinding temp,
-                                    WasmValueType targetType,
-                                    WasmInstructionEmitter emitter,
-                                    LocalBindings locals) {
-        emitter.localGet(temp.index, temp.name)
-        WasmValueType keyType = emitExpr(matchCase.key, emitter, locals)
-        if (isStringType(targetType) && isStringType(keyType)) {
-            emitter.callImport(runtimeImports['str_eq'])
-        } else {
-            emitter.i32Eq()
+    private void emitPatternCondition(Pattern pattern,
+                                      LocalBinding temp,
+                                      WasmValueType targetType,
+                                      WasmInstructionEmitter emitter,
+                                      LocalBindings locals) {
+        switch (pattern) {
+            case WildcardPattern:
+            case VarPattern:
+                emitter.i32Const(1)
+                return
+            case LiteralPattern:
+                emitter.localGet(temp.index, temp.name)
+                WasmValueType literalType = emitExpr((pattern as LiteralPattern).literal, emitter, locals)
+                if (isStringType(targetType) && isStringType(literalType)) {
+                    emitter.callImport(runtimeImports['str_eq'])
+                } else {
+                    emitter.i32Eq()
+                }
+                return
+            case RecordPattern:
+                emitRecordPatternCondition(pattern as RecordPattern, temp, targetType, emitter, locals)
+                return
+            case VariantPattern:
+                emitVariantPatternCondition(pattern as VariantPattern, temp, targetType, emitter, locals)
+                return
+            default:
+                throw new IllegalStateException("Unsupported pattern ${pattern?.class?.simpleName} in ${context.fqn}")
         }
+    }
+
+    private void emitRecordPatternCondition(RecordPattern pattern,
+                                            LocalBinding temp,
+                                            WasmValueType targetType,
+                                            WasmInstructionEmitter emitter,
+                                            LocalBindings locals) {
+        if (!targetType.recordType) {
+            throw new IllegalStateException("Record pattern ${pattern.typeName} requires record target in ${context.fqn}")
+        }
+        emitter.localGet(temp.index, temp.name)
+        emitter.i32Eqz()
+        emitter.ifOp(true)
+        emitter.i32Const(0)
+        emitter.elseOp()
+        emitter.i32Const(1)
+        RecordLayout layout = layoutForRecord(pattern.typeName)
+        pattern.fields.each { RecordFieldPattern fieldPattern ->
+            Pattern inner = fieldPattern.pattern
+            if (inner instanceof LiteralPattern) {
+                FieldLayout fieldLayout = layout.field(fieldPattern.field)
+                emitLoadRecordField(temp, fieldLayout, emitter)
+                WasmValueType literalType = emitExpr((inner as LiteralPattern).literal, emitter, locals)
+                if (isStringType(fieldLayout.type) && isStringType(literalType)) {
+                    emitter.callImport(runtimeImports['str_eq'])
+                } else {
+                    emitter.i32Eq()
+                }
+                emitter.i32And()
+            }
+            // wildcard/var patterns don't add extra conditions
+        }
+        emitter.end()
+    }
+
+    private void emitVariantPatternCondition(VariantPattern pattern,
+                                             LocalBinding temp,
+                                             WasmValueType targetType,
+                                             WasmInstructionEmitter emitter,
+                                             LocalBindings locals) {
+        VariantRuntime variant = resolveVariantPattern(pattern, targetType)
+        emitter.localGet(temp.index, temp.name)
+        emitter.i32Eqz()
+        emitter.ifOp(true)
+        emitter.i32Const(0)
+        emitter.elseOp()
+        emitter.localGet(temp.index, temp.name)
+        emitter.loadI32()
+        emitter.i32Const(variant.tag)
+        emitter.i32Eq()
+        pattern.fields.eachWithIndex { Pattern inner, int idx ->
+            if (isCatchAllPattern(inner)) {
+                return
+            }
+            WasmValueType fieldType = WasmValueType.fromTypeName(variant.fieldTypes[idx])
+            LocalBinding fieldTemp = locals.declareTemp(fieldType, "_variantField${idx}")
+            emitLoadVariantField(temp, idx, emitter)
+            emitter.localSet(fieldTemp.index, fieldTemp.name)
+            emitPatternCondition(inner, fieldTemp, fieldType, emitter, locals)
+            emitter.i32And()
+        }
+        emitter.end()
+    }
+
+    private void emitPatternBindings(Pattern pattern,
+                                     LocalBinding temp,
+                                     WasmValueType targetType,
+                                     WasmInstructionEmitter emitter,
+                                     LocalBindings locals) {
+        switch (pattern) {
+            case VarPattern:
+                LocalBinding binding = ensurePatternBinding((pattern as VarPattern).name, targetType, locals)
+                emitter.localGet(temp.index, temp.name)
+                emitter.localSet(binding.index, binding.name)
+                return
+            case RecordPattern:
+                emitRecordPatternBindings(pattern as RecordPattern, temp, emitter, locals)
+                return
+            case VariantPattern:
+                emitVariantPatternBindings(pattern as VariantPattern, temp, targetType, emitter, locals)
+                return
+            case WildcardPattern:
+            case LiteralPattern:
+                return
+            default:
+                throw new IllegalStateException("Unsupported pattern ${pattern?.class?.simpleName} in ${context.fqn}")
+        }
+    }
+
+    private void emitRecordPatternBindings(RecordPattern pattern,
+                                           LocalBinding temp,
+                                           WasmInstructionEmitter emitter,
+                                           LocalBindings locals) {
+        RecordLayout layout = layoutForRecord(pattern.typeName)
+        pattern.fields.each { RecordFieldPattern fieldPattern ->
+            Pattern inner = fieldPattern.pattern
+            if (inner instanceof VarPattern) {
+                FieldLayout fieldLayout = layout.field(fieldPattern.field)
+                LocalBinding binding = ensurePatternBinding((inner as VarPattern).name, fieldLayout.type, locals)
+                emitLoadRecordField(temp, fieldLayout, emitter)
+                emitter.localSet(binding.index, binding.name)
+            }
+        }
+    }
+
+    private void emitVariantPatternBindings(VariantPattern pattern,
+                                            LocalBinding temp,
+                                            WasmValueType targetType,
+                                            WasmInstructionEmitter emitter,
+                                            LocalBindings locals) {
+        VariantRuntime variant = resolveVariantPattern(pattern, targetType)
+        pattern.fields.eachWithIndex { Pattern inner, int idx ->
+            WasmValueType fieldType = WasmValueType.fromTypeName(variant.fieldTypes[idx])
+            LocalBinding fieldTemp = locals.declareTemp(fieldType, "_variantFieldBind${idx}")
+            emitLoadVariantField(temp, idx, emitter)
+            emitter.localSet(fieldTemp.index, fieldTemp.name)
+            emitPatternBindings(inner, fieldTemp, fieldType, emitter, locals)
+        }
+    }
+
+    private LocalBinding ensurePatternBinding(String name,
+                                              WasmValueType type,
+                                              LocalBindings locals) {
+        if (locals.has(name)) {
+            return locals.binding(name)
+        }
+        return locals.declare(name, type)
+    }
+
+    private void emitLoadRecordField(LocalBinding base,
+                                     FieldLayout layout,
+                                     WasmInstructionEmitter emitter) {
+        emitter.localGet(base.index, base.name)
+        if (layout.offset != 0) {
+            emitter.i32Const(layout.offset)
+            emitter.binary('+')
+        }
+        emitter.loadI32()
+    }
+
+    private void emitLoadVariantField(LocalBinding base,
+                                      int fieldIndex,
+                                      WasmInstructionEmitter emitter) {
+        emitter.localGet(base.index, base.name)
+        int offset = HeapLayout.POINTER_SIZE * (fieldIndex + 1)
+        if (offset != 0) {
+            emitter.i32Const(offset)
+            emitter.binary('+')
+        }
+        emitter.loadI32()
+    }
+
+    private VariantRuntime resolveVariantPattern(VariantPattern pattern,
+                                                 WasmValueType targetType) {
+        VariantRuntime variant = sumTypeRegistry.variant(pattern.variantName)
+        if (!variant) {
+            throw new IllegalStateException("Unknown variant ${pattern.variantName} in ${context.fqn}")
+        }
+        String expected = pattern.typeName ?: targetType?.recordType
+        String normalized = WasmValueType.normalizeRecordName(expected)
+        if (normalized && normalized != variant.sumTypeName) {
+            throw new IllegalStateException("Pattern ${pattern.variantName} does not match ${normalized} in ${context.fqn}")
+        }
+        return variant
+    }
+
+    private boolean isCatchAllPattern(Pattern pattern) {
+        pattern instanceof WildcardPattern || pattern instanceof VarPattern
     }
 
     private WasmValueType emitFieldAccess(Object expr,
@@ -835,6 +1408,13 @@ class WasmInstructionEmitter {
     void callImport(RuntimeImport runtimeImport) {
         call(runtimeImport.functionIndex, "\$${runtimeImport.name}")
     }
+    
+    void callIndirect(int typeIndex) {
+        out.write((byte) 0x11)
+        WasmModuleWriter.writeU32(out, typeIndex)
+        out.write((byte) 0x00)
+        instructions << "call_indirect (type ${typeIndex})"
+    }
 
     void binary(String op) {
         int opcode
@@ -878,6 +1458,41 @@ class WasmInstructionEmitter {
     void i32Eq() {
         out.write((byte) 0x46)
         instructions << 'i32.eq'
+    }
+
+    void i32Ne() {
+        out.write((byte) 0x47)
+        instructions << 'i32.ne'
+    }
+
+    void i32Lt() {
+        out.write((byte) 0x48)
+        instructions << 'i32.lt_s'
+    }
+
+    void i32Gt() {
+        out.write((byte) 0x4a)
+        instructions << 'i32.gt_s'
+    }
+
+    void i32Le() {
+        out.write((byte) 0x4c)
+        instructions << 'i32.le_s'
+    }
+
+    void i32Ge() {
+        out.write((byte) 0x4e)
+        instructions << 'i32.ge_s'
+    }
+
+    void i32Eqz() {
+        out.write((byte) 0x45)
+        instructions << 'i32.eqz'
+    }
+
+    void i32And() {
+        out.write((byte) 0x71)
+        instructions << 'i32.and'
     }
 
     void select() {
@@ -942,6 +1557,7 @@ class ExportSpec {
 class FunctionContext {
     final String fqn
     final FunctionDecl decl
+    final LambdaExpr lambda
     final ResolvedSymbols symbols
     final String pkg
     final String watName
@@ -950,12 +1566,18 @@ class FunctionContext {
     final List<Byte> paramTypes
     final WasmValueType returnValueType
     final GlyphValueKind returnKind
+    final ClosureLayout closureLayout
+    final ClosureSignature closureSignature
+    final String envParamName
+    final FunctionContext parent
     int typeIndex
     int functionIndex
+    int tableIndex = -1
 
     FunctionContext(String fqn, FunctionDecl decl, ResolvedSymbols symbols, String pkg) {
         this.fqn = fqn
         this.decl = decl
+        this.lambda = null
         this.symbols = symbols
         this.pkg = pkg
         this.watName = "\$${fqn.replace('.', '_')}"
@@ -964,12 +1586,65 @@ class FunctionContext {
         this.paramTypes = paramValueTypes.collect { WasmModuleWriter.VAL_I32 }
         this.returnValueType = WasmValueType.fromTypeName(decl.returnType)
         this.returnKind = returnValueType.kind
+        this.closureLayout = null
+        this.closureSignature = null
+        this.envParamName = null
+        this.parent = null
+    }
+
+    private FunctionContext(String fqn,
+                            LambdaExpr lambda,
+                            ResolvedSymbols symbols,
+                            String pkg,
+                            FunctionContext parent,
+                            ClosureLayout closureLayout,
+                            ClosureSignature closureSignature) {
+        this.fqn = fqn
+        this.decl = null
+        this.lambda = lambda
+        this.symbols = symbols
+        this.pkg = pkg
+        this.parent = parent
+        this.closureLayout = closureLayout
+        this.closureSignature = closureSignature
+        this.envParamName = '_env'
+        this.watName = "\$${fqn.replace('.', '_')}"
+        List<String> names = [envParamName]
+        names.addAll(lambda.params.collect { it.name })
+        this.paramNames = names
+        List<WasmValueType> valueTypes = [WasmValueType.pointer(null)]
+        valueTypes.addAll(lambda.params.collect { WasmValueType.fromTypeName(it.type) })
+        this.paramValueTypes = valueTypes
+        this.paramTypes = paramValueTypes.collect { WasmModuleWriter.VAL_I32 }
+        this.returnValueType = WasmValueType.fromTypeName(lambda.resolvedReturnType ?: 'void')
+        this.returnKind = returnValueType.kind
     }
 
     String getWatSignature() {
-        String params = decl.params.collect { "(param \$${it.name} i32)" }.join(' ')
+        String params = paramNames.collect { "(param \$${it} i32)" }.join(' ')
         String returns = returnKind == GlyphValueKind.VOID ? '' : ' (result i32)'
         return params ? " ${params}${returns}" : returns
+    }
+
+    static FunctionContext lambdaContext(String fqn,
+                                         LambdaExpr lambda,
+                                         ResolvedSymbols symbols,
+                                         String pkg,
+                                         FunctionContext parent,
+                                         ClosureLayout layout,
+                                         ClosureSignature signature) {
+        return new FunctionContext(fqn, lambda, symbols, pkg, parent, layout, signature)
+    }
+
+    boolean isLambda() {
+        return lambda != null
+    }
+
+    List<Statement> statements() {
+        if (lambda != null) {
+            return lambda.body?.statements ?: []
+        }
+        return decl.body?.statements ?: []
     }
 }
 
@@ -986,17 +1661,20 @@ class WasmValueType {
     final String arrayElementType
     final String mapKeyType
     final String mapValueType
+    final ClosureSignature closureSignature
 
     WasmValueType(GlyphValueKind kind,
                   String recordType = null,
                   String arrayElementType = null,
                   String mapKeyType = null,
-                  String mapValueType = null) {
+                  String mapValueType = null,
+                  ClosureSignature closureSignature = null) {
         this.kind = kind
         this.recordType = recordType
         this.arrayElementType = arrayElementType
         this.mapKeyType = mapKeyType
         this.mapValueType = mapValueType
+        this.closureSignature = closureSignature
     }
 
     static WasmValueType i32() {
@@ -1017,6 +1695,10 @@ class WasmValueType {
 
     static WasmValueType mapPointer(String keyType, String valueType) {
         new WasmValueType(GlyphValueKind.POINTER, null, null, keyType?.trim(), valueType?.trim())
+    }
+
+    static WasmValueType closure(ClosureSignature signature) {
+        new WasmValueType(GlyphValueKind.POINTER, null, null, null, null, signature)
     }
 
     static WasmValueType fromTypeName(String typeName) {
@@ -1063,38 +1745,116 @@ class WasmValueType {
         }
         normalized
     }
+
+    boolean isClosure() {
+        return closureSignature != null
+    }
+}
+
+class SumTypeRegistry {
+    private final Map<String, SumTypeRuntime> sumTypes = [:]
+    private final Map<String, VariantRuntime> variants = [:]
+
+    void registerSymbols(ResolvedSymbols symbols, Program program) {
+        symbols?.sumTypes?.values()?.each { registerSumType(it) }
+        program?.sumTypes?.each { registerSumType(it) }
+    }
+
+    private void registerSumType(SumTypeDecl decl) {
+        if (!decl || sumTypes.containsKey(decl.name)) {
+            return
+        }
+        List<VariantRuntime> infos = []
+        decl.variants?.eachWithIndex { variant, int idx ->
+            if (variants.containsKey(variant.name)) {
+                throw new IllegalStateException("Constructor ${variant.name} already defined")
+            }
+            VariantRuntime runtime = new VariantRuntime(decl.name, variant.name, idx, variant.fields?.collect { it.type } ?: [])
+            variants[variant.name] = runtime
+            infos << runtime
+        }
+        sumTypes[decl.name] = new SumTypeRuntime(decl.name, infos)
+    }
+
+    VariantRuntime variant(String name) {
+        variants[name]
+    }
+}
+
+class SumTypeRuntime {
+    final String name
+    final List<VariantRuntime> variants
+
+    SumTypeRuntime(String name, List<VariantRuntime> variants) {
+        this.name = name
+        this.variants = variants ?: Collections.emptyList()
+    }
+}
+
+class VariantRuntime {
+    final String sumTypeName
+    final String variantName
+    final int tag
+    final List<String> fieldTypes
+    final int totalSize
+
+    VariantRuntime(String sumTypeName, String variantName, int tag, List<String> fieldTypes) {
+        this.sumTypeName = sumTypeName
+        this.variantName = variantName
+        this.tag = tag
+        this.fieldTypes = fieldTypes ?: Collections.emptyList()
+        this.totalSize = HeapLayout.POINTER_SIZE * (1 + this.fieldTypes.size())
+    }
 }
 
 class LocalBindings {
-    private final Map<String, LocalBinding> bindings = [:]
-    private final List<LocalBinding> ordered = []
-    private int nextIndex
-    private int paramCount
-    private int tempCounter = 0
+    private final Map<String, LocalBinding> bindings
+    private final List<LocalBinding> ordered
+    private final AtomicInteger nextIndex
+    private final AtomicInteger tempCounter
+    private final int paramCount
+
+    private LocalBindings(Map<String, LocalBinding> bindings,
+                          List<LocalBinding> ordered,
+                          AtomicInteger nextIndex,
+                          AtomicInteger tempCounter,
+                          int paramCount) {
+        this.bindings = bindings
+        this.ordered = ordered
+        this.nextIndex = nextIndex
+        this.tempCounter = tempCounter
+        this.paramCount = paramCount
+    }
 
     static LocalBindings fromParams(FunctionContext ctx) {
-        LocalBindings locals = new LocalBindings()
+        Map<String, LocalBinding> bindings = new LinkedHashMap<>()
+        List<LocalBinding> ordered = []
         ctx.paramNames.eachWithIndex { String name, int idx ->
             WasmValueType type = ctx.paramValueTypes[idx]
             LocalBinding binding = new LocalBinding(name, idx, type)
-            locals.bindings[name] = binding
-            locals.ordered << binding
+            bindings[name] = binding
+            ordered << binding
         }
-        locals.paramCount = ctx.paramNames.size()
-        locals.nextIndex = locals.paramCount
-        return locals
+        int paramCount = ctx.paramNames.size()
+        AtomicInteger nextIndex = new AtomicInteger(paramCount)
+        AtomicInteger tempCounter = new AtomicInteger(0)
+        return new LocalBindings(bindings, ordered, nextIndex, tempCounter, paramCount)
+    }
+
+    LocalBindings fork() {
+        return new LocalBindings(new LinkedHashMap<>(bindings), ordered, nextIndex, tempCounter, paramCount)
     }
 
     LocalBinding declare(String name, WasmValueType type) {
-        LocalBinding binding = new LocalBinding(name, nextIndex++, type)
+        LocalBinding binding = new LocalBinding(name, nextIndex.getAndIncrement(), type)
         bindings[name] = binding
         ordered << binding
         return binding
     }
 
     LocalBinding declareTemp(WasmValueType type, String baseName) {
-        String name = "_${baseName}${tempCounter++}"
-        LocalBinding binding = new LocalBinding(name, nextIndex++, type)
+        String name = "_${baseName}${tempCounter.getAndIncrement()}"
+        LocalBinding binding = new LocalBinding(name, nextIndex.getAndIncrement(), type)
         bindings[name] = binding
         ordered << binding
         return binding
@@ -1109,7 +1869,7 @@ class LocalBindings {
     }
 
     int getLocalCount() {
-        nextIndex - paramCount
+        nextIndex.get() - paramCount
     }
 
     List<String> localDecls() {
@@ -1196,5 +1956,200 @@ class WasmTypeSectionBuilder {
         int idx = entries.size() - 1
         indexes[key] = idx
         return idx
+    }
+}
+
+class ClosureSignature {
+    final List<String> parameterTypeNames
+    final String returnTypeName
+    final List<WasmValueType> params
+    final WasmValueType returnType
+    int typeIndex = -1
+
+    ClosureSignature(List<String> parameterTypeNames, String returnTypeName) {
+        this.parameterTypeNames = parameterTypeNames.collect { it?.trim() ?: '' }
+        this.returnTypeName = (returnTypeName ?: 'void').trim()
+        this.params = this.parameterTypeNames.collect { WasmValueType.fromTypeName(it) }
+        this.returnType = WasmValueType.fromTypeName(this.returnTypeName)
+    }
+
+    String key() {
+        return "${parameterTypeNames.join(',')}->${returnTypeName}"
+    }
+}
+
+class ClosureSignatureRegistry {
+    private final Map<String, ClosureSignature> signatures = [:]
+
+    ClosureSignature signatureFor(LambdaExpr expr) {
+        List<String> params = expr.params.collect {
+            if (!it.type) {
+                throw new IllegalStateException("Lambda parameter type is required${expr.pos ? " at line ${expr.pos.line}" : ''}")
+            }
+            it.type.trim()
+        }
+        String returnName = (expr.resolvedReturnType ?: 'void').trim()
+        return signatureForTypes(params, returnName)
+    }
+
+    ClosureSignature signatureForTypes(List<String> params, String returnType) {
+        String key = "${params.collect { it?.trim() ?: '' }.join(',')}->${(returnType ?: 'void').trim()}"
+        return signatures.computeIfAbsent(key) { new ClosureSignature(params, returnType) }
+    }
+}
+
+class ClosureLayout {
+    private static final ClosureLayout EMPTY = new ClosureLayout([], 0)
+    final List<CapturedFieldLayout> fields
+    private final Map<String, CapturedFieldLayout> fieldsByName
+    final int totalSize
+
+    ClosureLayout(List<CapturedFieldLayout> fields, int totalSize) {
+        this.fields = fields ?: []
+        this.totalSize = totalSize
+        this.fieldsByName = this.fields.collectEntries { [(it.name): it] }
+    }
+
+    static ClosureLayout empty() {
+        return EMPTY
+    }
+
+    boolean hasField(String name) {
+        fieldsByName.containsKey(name)
+    }
+
+    CapturedFieldLayout field(String name) {
+        CapturedFieldLayout layout = fieldsByName[name]
+        if (!layout) {
+            throw new IllegalStateException("Unknown captured field ${name}")
+        }
+        return layout
+    }
+}
+
+class CapturedFieldLayout {
+    final String name
+    final int offset
+    final WasmValueType type
+
+    CapturedFieldLayout(String name, int offset, WasmValueType type) {
+        this.name = name
+        this.offset = offset
+        this.type = type
+    }
+}
+
+class LambdaCollector {
+    static void collect(FunctionContext ctx, Closure<LambdaExpr> consumer) {
+        collectStatements(ctx?.statements(), consumer)
+    }
+
+    private static void collectStatements(List<Statement> statements, Closure<LambdaExpr> consumer) {
+        statements?.each { visitStatement(it, consumer) }
+    }
+
+    private static void visitStatement(Statement stmt, Closure<LambdaExpr> consumer) {
+        switch (stmt) {
+            case VarDecl:
+                visitExpr(stmt.value, consumer)
+                break
+            case AssignStmt:
+                visitExpr(stmt.target, consumer)
+                visitExpr(stmt.value, consumer)
+                break
+            case PrintStmt:
+                visitExpr(stmt.expr, consumer)
+                break
+            case ExprStmt:
+                visitExpr(stmt.expr, consumer)
+                break
+            case ReturnStmt:
+                visitExpr(stmt.expr, consumer)
+                break
+            case Block:
+                collectStatements(stmt.statements, consumer)
+                break
+            default:
+                break
+        }
+    }
+
+    private static void visitExpr(Expr expr, Closure<LambdaExpr> consumer) {
+        if (expr == null) return
+        if (expr instanceof LambdaExpr) {
+            consumer.call(expr as LambdaExpr)
+            collectStatements((expr as LambdaExpr).body?.statements, consumer)
+            return
+        }
+        switch (expr) {
+            case BinaryOp:
+                visitExpr(expr.left, consumer)
+                visitExpr(expr.right, consumer)
+                break
+            case CallExpr:
+                expr.arguments.each { visitExpr(it, consumer) }
+                break
+            case RecordLiteral:
+                expr.fields.values().each { visitExpr(it, consumer) }
+                break
+            case FieldAccess:
+            case SafeFieldAccess:
+                visitExpr(expr.target, consumer)
+                break
+            case ArrayAllocExpr:
+                visitExpr(expr.size, consumer)
+                break
+            case IndexAccess:
+                visitExpr(expr.target, consumer)
+                visitExpr(expr.index, consumer)
+                break
+            case MapAllocExpr:
+                visitExpr(expr.capacity, consumer)
+                break
+            case MapLiteralExpr:
+                expr.entries.each {
+                    visitExpr(it.key, consumer)
+                    visitExpr(it.value, consumer)
+                }
+                break
+            case TernaryExpr:
+                visitExpr(expr.condition, consumer)
+                visitExpr(expr.ifTrue, consumer)
+                visitExpr(expr.ifFalse, consumer)
+                break
+            case ElvisExpr:
+                visitExpr(expr.left, consumer)
+                visitExpr(expr.right, consumer)
+                break
+            case MatchExpr:
+                visitExpr(expr.target, consumer)
+                expr.cases.each {
+                    visitPattern(it.pattern, consumer)
+                    visitExpr(it.value, consumer)
+                }
+                visitExpr(expr.elseExpr, consumer)
+                break
+            case IfExpr:
+                visitExpr(expr.condition, consumer)
+                collectStatements(expr.thenBlock?.statements, consumer)
+                collectStatements(expr.elseBlock?.statements, consumer)
+                break
+            default:
+                break
+        }
+    }
+
+    private static void visitPattern(Pattern pattern, Closure<LambdaExpr> consumer) {
+        if (pattern == null) return
+        switch (pattern) {
+            case LiteralPattern:
+                visitExpr(pattern.literal, consumer)
+                break
+            case RecordPattern:
+                pattern.fields.each { visitPattern(it.pattern, consumer) }
+                break
+            default:
+                break
+        }
     }
 }

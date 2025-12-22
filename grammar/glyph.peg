@@ -26,12 +26,18 @@ Program         <- Skip pkg:PackageDecl? imps:ImportDecl* d:Decl* Skip EOF {
     decls := d.([]interface{})
     records := []*ast.RecordDecl{}
     funcs := []*ast.FunctionDecl{}
+    aliases := []*ast.TypeAliasDecl{}
+    sums := []*ast.SumTypeDecl{}
     for _, item := range decls {
         switch v := item.(type) {
+        case *ast.TypeAliasDecl:
+            aliases = append(aliases, v)
         case *ast.RecordDecl:
             records = append(records, v)
         case *ast.FunctionDecl:
             funcs = append(funcs, v)
+        case *ast.SumTypeDecl:
+            sums = append(sums, v)
         }
     }
     var pkgDecl *ast.PackageDecl
@@ -45,7 +51,7 @@ Program         <- Skip pkg:PackageDecl? imps:ImportDecl* d:Decl* Skip EOF {
             imports = append(imports, item.(*ast.ImportDecl))
         }
     }
-    return &ast.Program{Package: pkgDecl, Imports: imports, Records: records, Functions: funcs}, nil
+    return &ast.Program{Package: pkgDecl, Imports: imports, TypeAliases: aliases, Records: records, SumTypes: sums, Functions: funcs}, nil
 }
 
 PackageDecl     <- PACKAGE WS+ q:QualifiedName Terminator {
@@ -56,7 +62,11 @@ ImportDecl      <- IMPORT WS+ q:QualifiedName Terminator {
     return &ast.ImportDecl{Name: q.(string)}, nil
 }
 
-Decl            <- RecordDecl / FuncDecl
+Decl            <- SumTypeDecl / TypeAliasDecl / RecordDecl / FuncDecl
+
+TypeAliasDecl   <- TYPE WS name:Ident WS? "=" WS? t:Type Terminator {
+    return &ast.TypeAliasDecl{Name: name.(string), TargetType: t.(string)}, nil
+}
 
 RecordDecl      <- RECORD WS name:Ident WS* "{" Skip f:RecordField* "}" {
     fields := f.([]interface{})
@@ -172,7 +182,31 @@ Ternary         <- m:MatchOrIf WS? "?" WS? t:Ternary WS? ":" WS? f:Ternary {
 }
                 / MatchOrIf
 
-MatchOrIf       <- IfExpr / MatchExpr / Sum
+MatchOrIf       <- IfExpr / MatchExpr / Equality
+
+Equality        <- l:Comparison t:(WS? o:EqualityOp WS? r:Comparison { return []interface{}{o, r}, nil })* {
+    left := l.(ast.Expr)
+    tails := t.([]interface{})
+    for _, item := range tails {
+        parts := item.([]interface{})
+        op := parts[0].(string)
+        right := parts[1].(ast.Expr)
+        left = &ast.BinaryOp{Op: op, Left: left, Right: right}
+    }
+    return left, nil
+}
+
+Comparison      <- l:Sum t:(WS? o:CompareOp WS? r:Sum { return []interface{}{o, r}, nil })* {
+    left := l.(ast.Expr)
+    tails := t.([]interface{})
+    for _, item := range tails {
+        parts := item.([]interface{})
+        op := parts[0].(string)
+        right := parts[1].(ast.Expr)
+        left = &ast.BinaryOp{Op: op, Left: left, Right: right}
+    }
+    return left, nil
+}
 
 IfExpr          <- IF WS cond:Expr WS? tb:Block WS? ELSE WS? eb:Block {
     return &ast.IfExpr{Condition: cond.(ast.Expr), ThenBlock: tb.(*ast.Block), ElseBlock: eb.(*ast.Block)}, nil
@@ -181,17 +215,62 @@ IfExpr          <- IF WS cond:Expr WS? tb:Block WS? ELSE WS? eb:Block {
     return &ast.IfExpr{Condition: cond.(ast.Expr), ThenBlock: tb.(*ast.Block)}, nil
 }
 
-MatchExpr       <- MATCH WS v:Expr WS? "{" Skip cases:MatchCase* "}" WS? ELSE WS? e:Expr {
+MatchExpr       <- MATCH WS v:Expr WS? "{" Skip cases:MatchCase* "}" WS? elseCase:MatchElse? {
     list := cases.([]interface{})
     out := make([]*ast.MatchCase, len(list))
     for i, item := range list {
         out[i] = item.(*ast.MatchCase)
     }
-    return &ast.MatchExpr{Target: v.(ast.Expr), Cases: out, ElseExpr: e.(ast.Expr)}, nil
+    var fallback ast.Expr
+    if elseCase != nil {
+        fallback = elseCase.(ast.Expr)
+    }
+    return &ast.MatchExpr{Target: v.(ast.Expr), Cases: out, ElseExpr: fallback}, nil
 }
 
-MatchCase       <- k:Expr WS? "=" WS? v:Expr Terminator {
-    return &ast.MatchCase{Key: k.(ast.Expr), Value: v.(ast.Expr)}, nil
+MatchElse       <- ELSE WS? e:Expr { return e.(ast.Expr), nil }
+
+MatchCase       <- p:Pattern WS? ARROW WS? v:Expr Terminator {
+    return &ast.MatchCase{Pattern: p.(ast.Pattern), Value: v.(ast.Expr)}, nil
+}
+
+Pattern         <- RecordPattern / LiteralPattern / WildcardPattern / VarPattern
+
+WildcardPattern <- "_" { return &ast.WildcardPattern{}, nil }
+
+VarPattern      <- i:Ident { return &ast.VarPattern{Name: i.(string)}, nil }
+
+LiteralPattern  <- s:StringLit { return &ast.LiteralPattern{Literal: s.(*ast.StringLiteral)}, nil }
+                / i:IntLit    { return &ast.LiteralPattern{Literal: i.(*ast.IntLiteral)}, nil }
+                / b:BoolLit   { return &ast.LiteralPattern{Literal: b.(*ast.BoolLiteral)}, nil }
+                / n:NullLit   { return &ast.LiteralPattern{Literal: n.(*ast.NullLiteral)}, nil }
+
+RecordPattern   <- t:TypeIdent WS? body:RecordPatternBody {
+    fields := []*ast.RecordFieldPattern{}
+    if body != nil {
+        list := body.([]interface{})
+        fields = make([]*ast.RecordFieldPattern, len(list))
+        for i, item := range list {
+            fields[i] = item.(*ast.RecordFieldPattern)
+        }
+    }
+    return &ast.RecordPattern{TypeName: t.(string), Fields: fields}, nil
+}
+
+RecordPatternBody <- "(" WS? f:RecordPatternFields? WS? ")" { return f, nil }
+                   / "{" WS? f:RecordPatternFields? WS? "}" { return f, nil }
+
+RecordPatternFields <- fp:RecordFieldPattern more:(WS? "," WS? RecordFieldPattern)* {
+    out := []interface{}{fp}
+    for _, item := range more.([]interface{}) {
+        parts := item.([]interface{})
+        out = append(out, parts[len(parts)-1])
+    }
+    return out, nil
+}
+
+RecordFieldPattern <- n:Ident WS? "=" WS? p:Pattern {
+    return &ast.RecordFieldPattern{Field: n.(string), Pattern: p.(ast.Pattern)}, nil
 }
 
 Sum             <- l:Term t:(WS? o:AddOp WS? r:Term { return []interface{}{o, r}, nil })* {
@@ -426,6 +505,8 @@ Ident           <- head:[A-Za-z_] tail:[A-Za-z0-9_]* {
 
 AddOp           <- o:("+" / "-") { return string(o.([]uint8)), nil }
 MulOp           <- o:("*" / "/") { return string(o.([]uint8)), nil }
+EqualityOp      <- o:("==" / "!=") { return string(o.([]uint8)), nil }
+CompareOp       <- o:("<=" / "<" / ">=" / ">") { return string(o.([]uint8)), nil }
 
 Terminator      <- WS* (";" WS*)? (NL WS*)* / WS* &( "}" / EOF )
 
@@ -460,9 +541,10 @@ ELSE            <- "else"
 MATCH           <- "match"
 PACKAGE         <- "package"
 IMPORT          <- "import"
+TYPE            <- "type"
 
 EOF             <- !.
-LambdaExpr      <- FUN WS ret:Type WS? "(" WS? params:ParamList? WS? ")" WS? block:Block {
+LambdaExpr      <- FUN WS ret:Type? WS? "(" WS? params:ParamList? WS? ")" WS? block:Block {
     var parameters []*ast.Param
     if params != nil {
         list := params.([]interface{})
@@ -471,5 +553,60 @@ LambdaExpr      <- FUN WS ret:Type WS? "(" WS? params:ParamList? WS? ")" WS? blo
             parameters[i] = item.(*ast.Param)
         }
     }
-    return &ast.LambdaExpr{Params: parameters, Body: block.(*ast.Block), ReturnType: ret.(string)}, nil
+    var retType string
+    if ret != nil {
+        retType = ret.(string)
+    }
+    return &ast.LambdaExpr{Params: parameters, Body: block.(*ast.Block), ReturnType: retType}, nil
+}
+SumTypeDecl     <- TYPE WS name:Ident WS? "=" WS? variants:VariantList Terminator {
+    return &ast.SumTypeDecl{Name: name.(string), Variants: variants.([]*ast.VariantDecl)}, nil
+}
+
+VariantList     <- head:VariantDecl tail:(WS* "|" WS* VariantDecl)* {
+    list := []*ast.VariantDecl{head.(*ast.VariantDecl)}
+    if tail != nil {
+        for _, item := range tail.([]interface__) {
+            parts := item.([]interface{})
+            list = append(list, parts[len(parts)-1].(*ast.VariantDecl))
+        }
+    }
+    return list, nil
+}
+                / "|" WS* first:VariantDecl tail:(WS* "|" WS* VariantDecl)* {
+    list := []*ast.VariantDecl{first.(*ast.VariantDecl)}
+    if tail != nil {
+        for _, item := range tail.([]interface__) {
+            parts := item.([]interface{})
+            list = append(list, parts[len(parts)-1].(*ast.VariantDecl))
+        }
+    }
+    return list, nil
+}
+
+VariantDecl     <- name:Ident WS? "(" WS? fields:VariantFieldList? WS? ")" {
+    var fieldList []*ast.VariantField
+    if fields != nil {
+        raw := fields.([]interface{})
+        fieldList = make([]*ast.VariantField, len(raw))
+        for i, item := range raw {
+            fieldList[i] = item.(*ast.VariantField)
+        }
+    }
+    return &ast.VariantDecl{Name: name.(string), Fields: fieldList}, nil
+}
+
+VariantFieldList <- head:VariantField tail:(WS? "," WS? VariantField)* {
+    out := []interface{}{head}
+    if tail != nil {
+        for _, item := range tail.([]interface__) {
+            parts := item.([]interface{})
+            out = append(out, parts[len(parts)-1])
+        }
+    }
+    return out, nil
+}
+
+VariantField    <- name:Ident WS? ":" WS? t:Type {
+    return &ast.VariantField{Name: name.(string), Type: t.(string)}, nil
 }

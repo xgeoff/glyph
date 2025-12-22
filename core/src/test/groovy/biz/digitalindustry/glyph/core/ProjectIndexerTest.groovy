@@ -82,6 +82,58 @@ class ProjectIndexerTest {
         }
     }
 
+    @Test
+    void indexesLibraryDirectoriesWhenProvided() {
+        Path projectDir = Files.createTempDirectory('glyph-project')
+        Path libDir = Files.createTempDirectory('glyph-lib')
+        try {
+            Path libFile = libDir.resolve('std.gly')
+            Files.writeString(libFile, '''
+                package std.io
+
+                fun void writeln(string value) { }
+            '''.stripIndent().trim())
+
+            ProjectIndex index = ProjectIndexer.index(projectDir, null, [libDir])
+            assertTrue(index.functionsByFqn.containsKey('std.io.writeln'))
+        } finally {
+            deleteDir(projectDir)
+            deleteDir(libDir)
+        }
+    }
+
+    @Test
+    void resolverExposesImportedTypeAliases() {
+        Path dir = Files.createTempDirectory('glyph-aliases')
+        try {
+            Path types = dir.resolve('types.gly')
+            Files.writeString(types, '''
+                package com.example.types
+
+                type UserId = string
+            '''.stripIndent().trim())
+
+            Path main = dir.resolve('main.gly')
+            Files.writeString(main, '''
+                package com.example.app
+
+                import com.example.types.UserId
+
+                fun void main() {
+                  val UserId id = "abc"
+                }
+            '''.stripIndent().trim())
+
+            ProjectIndex index = ProjectIndexer.index(dir)
+            SymbolResolver resolver = new SymbolResolver(index)
+            Program program = index.programsByFile[main.toAbsolutePath().normalize()]
+            ResolvedSymbols symbols = resolver.resolve(program)
+            assertNotNull(symbols.alias('UserId'), 'alias should be available via imports')
+        } finally {
+            deleteDir(dir)
+        }
+    }
+
     private static void deleteDir(Path dir) {
         if (dir == null) return
         if (!Files.exists(dir)) return

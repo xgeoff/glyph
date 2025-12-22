@@ -1,0 +1,10 @@
+package std.io
+
+fun void write(string s) {
+  print(s)
+}
+
+fun void writeln(string s) {
+  print(s)
+  print("\n")
+}

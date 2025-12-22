@@ -1,0 +1,21 @@
+package com.example.stdlib
+
+import std.io.writeln
+import std.math.abs
+import std.math.clamp
+
+fun void main() {
+  writeln("Hello from stdlib test!")
+  val int absVal = abs(0 - 42)
+  if absVal == 42 {
+    writeln("abs(-42) produced 42")
+  } else {
+    writeln("abs(-42) produced unexpected value")
+  }
+  val int clamped = clamp(15, 0, 10)
+  if clamped == 10 {
+    writeln("clamp(15, 0, 10) produced 10")
+  } else {
+    writeln("clamp yielded unexpected value")
+  }
+}

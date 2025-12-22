@@ -45,8 +45,8 @@ class ControlFlowTest {
               val x: int = true ? 2 : 3
               print(x)
               val y: string = match 2 {
-                1 = "one"
-                2 = "two"
+                1 -> "one"
+                2 -> "two"
               } else "other"
               print(y)
               val z: int = if true {
@@ -91,5 +91,36 @@ class ControlFlowTest {
             }
         ''')
         new TypeChecker().check(program)
+    }
+
+    @Test
+    void matchPatternBindingsAreScopedPerBranch() {
+        def program = parse('''
+            record User {
+              string name
+            }
+
+            fun void main() {
+              val string name = "outer"
+              val User u = User { name = "inner" }
+              val string result = match u {
+                User { name = name } -> name
+              } else "none"
+              print(name)
+              print(result)
+            }
+        ''')
+
+        def buffer = new ByteArrayOutputStream()
+        def original = System.out
+        System.setOut(new PrintStream(buffer))
+        try {
+            SimpleInterpreter.INSTANCE.eval(program)
+        } finally {
+            System.setOut(original)
+        }
+
+        def output = buffer.toString().trim().split(System.lineSeparator()) as List<String>
+        assertEquals(['outer', 'inner'], output)
     }
 }

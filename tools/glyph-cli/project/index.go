@@ -3,6 +3,7 @@ package project
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	"glyph-cli/ast"
@@ -13,18 +14,39 @@ import (
 type Index struct {
 	Functions map[string]*ast.FunctionDecl
 	Records   map[string]*ast.RecordDecl
+	Aliases   map[string]*ast.TypeAliasDecl
 	Programs  map[string]*ast.Program
 }
 
-// BuildIndex scans rootDir for .gly files and builds a global declaration map.
-func BuildIndex(rootDir string) (*Index, error) {
+// BuildIndex scans rootDir (and optional library directories) for .gly files.
+func BuildIndex(rootDir string, libDirs ...string) (*Index, error) {
 	idx := &Index{
 		Functions: make(map[string]*ast.FunctionDecl),
 		Records:   make(map[string]*ast.RecordDecl),
+		Aliases:   make(map[string]*ast.TypeAliasDecl),
 		Programs:  make(map[string]*ast.Program),
 	}
 
-	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
+	if err := scanDir(rootDir, idx); err != nil {
+		return nil, err
+	}
+	for _, lib := range libDirs {
+		if lib == "" {
+			continue
+		}
+		if info, err := os.Stat(lib); err != nil || !info.IsDir() {
+			continue
+		}
+		if err := scanDir(lib, idx); err != nil {
+			return nil, err
+		}
+	}
+
+	return idx, nil
+}
+
+func scanDir(rootDir string, idx *Index) error {
+	return filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -43,9 +65,19 @@ func BuildIndex(rootDir string) (*Index, error) {
 		if absErr != nil {
 			return absErr
 		}
+		if _, exists := idx.Programs[abs]; exists {
+			return nil
+		}
 		idx.Programs[abs] = program
 
 		pkg := packageName(program)
+		for _, alias := range program.TypeAliases {
+			fqn := qualify(pkg, alias.Name)
+			if _, exists := idx.Aliases[fqn]; exists {
+				return fmt.Errorf("duplicate type alias %s", fqn)
+			}
+			idx.Aliases[fqn] = alias
+		}
 		for _, rec := range program.Records {
 			fqn := qualify(pkg, rec.Name)
 			if _, exists := idx.Records[fqn]; exists {
@@ -62,12 +94,6 @@ func BuildIndex(rootDir string) (*Index, error) {
 		}
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return idx, nil
 }
 
 // Resolve constructs the visible symbol set for the provided program.
@@ -78,14 +104,18 @@ func Resolve(program *ast.Program, idx *Index) (*Symbols, error) {
 	pkg := packageName(program)
 	functions := make(map[string]*ast.FunctionDecl)
 	records := make(map[string]*ast.RecordDecl)
+	aliases := make(map[string]*ast.TypeAliasDecl)
 
-	addPackageSymbols(pkg, idx, functions, records)
+	addPackageSymbols(pkg, idx, functions, records, aliases)
 
 	for _, rec := range program.Records {
 		records[rec.Name] = rec
 	}
 	for _, fn := range program.Functions {
 		functions[fn.Name] = fn
+	}
+	for _, alias := range program.TypeAliases {
+		aliases[alias.Name] = alias
 	}
 
 	for _, imp := range program.Imports {
@@ -104,6 +134,13 @@ func Resolve(program *ast.Program, idx *Index) (*Symbols, error) {
 			records[simple] = rec
 			continue
 		}
+		if alias, ok := idx.Aliases[imp.Name]; ok {
+			if _, exists := aliases[simple]; exists {
+				return nil, fmt.Errorf("symbol %s already defined", simple)
+			}
+			aliases[simple] = alias
+			continue
+		}
 		return nil, fmt.Errorf("symbol not found: %s", imp.Name)
 	}
 
@@ -111,6 +148,7 @@ func Resolve(program *ast.Program, idx *Index) (*Symbols, error) {
 		Package:   pkg,
 		Functions: functions,
 		Records:   records,
+		Aliases:   aliases,
 	}, nil
 }
 
@@ -118,6 +156,7 @@ type Symbols struct {
 	Package   string
 	Functions map[string]*ast.FunctionDecl
 	Records   map[string]*ast.RecordDecl
+	Aliases   map[string]*ast.TypeAliasDecl
 }
 
 func packageName(program *ast.Program) string {
@@ -157,7 +196,7 @@ func lastDot(s string) int {
 	return -1
 }
 
-func addPackageSymbols(pkg string, idx *Index, functions map[string]*ast.FunctionDecl, records map[string]*ast.RecordDecl) {
+func addPackageSymbols(pkg string, idx *Index, functions map[string]*ast.FunctionDecl, records map[string]*ast.RecordDecl, aliases map[string]*ast.TypeAliasDecl) {
 	for fqn, fn := range idx.Functions {
 		if packagePart(fqn) != pkg {
 			continue
@@ -177,5 +216,15 @@ func addPackageSymbols(pkg string, idx *Index, functions map[string]*ast.Functio
 			continue
 		}
 		records[name] = rec
+	}
+	for fqn, alias := range idx.Aliases {
+		if packagePart(fqn) != pkg {
+			continue
+		}
+		name := simpleName(fqn)
+		if _, exists := aliases[name]; exists {
+			continue
+		}
+		aliases[name] = alias
 	}
 }

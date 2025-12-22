@@ -103,4 +103,72 @@ class InterpreterTest {
         List<String> output = buffer.toString().trim().split(System.lineSeparator()) as List<String>
         assertEquals(['5'], output)
     }
+
+    @Test
+    void invokesLambdaWithCapturedValue() {
+        String source = '''
+            fun void main() {
+              val int base = 3
+              val adder = fun int (int value) {
+                base + value
+              }
+              print(adder(7))
+            }
+        '''.stripIndent().trim()
+
+        Path tmp = Files.createTempFile('glyph-script', '.gly')
+        Files.writeString(tmp, source)
+        Program program = GlyphParser.parse(tmp)
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream()
+        PrintStream original = System.out
+        System.setOut(new PrintStream(buffer))
+        try {
+            SimpleInterpreter.INSTANCE.eval(program)
+        } finally {
+            System.setOut(original)
+            Files.deleteIfExists(tmp)
+        }
+
+        List<String> output = buffer.toString().trim().split(System.lineSeparator()) as List<String>
+        assertEquals(['10'], output)
+    }
+
+    @Test
+    void matchesVariantConstructors() {
+        String source = '''
+            type Result =
+              | Ok(value: int)
+              | Err(message: string)
+
+            fun string describe(Result r) {
+              match r {
+                Ok(v) -> "ok"
+                Err(msg) -> msg
+              } else "unknown"
+            }
+
+            fun void main() {
+              print(describe(Ok(5)))
+              print(describe(Err("boom")))
+            }
+        '''.stripIndent().trim()
+
+        Path tmp = Files.createTempFile('glyph-variants', '.gly')
+        Files.writeString(tmp, source)
+        Program program = GlyphParser.parse(tmp)
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream()
+        PrintStream original = System.out
+        System.setOut(new PrintStream(buffer))
+        try {
+            SimpleInterpreter.INSTANCE.eval(program)
+        } finally {
+            System.setOut(original)
+            Files.deleteIfExists(tmp)
+        }
+
+        List<String> output = buffer.toString().trim().split(System.lineSeparator()) as List<String>
+        assertEquals(['ok', 'boom'], output)
+    }
 }

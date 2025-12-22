@@ -2,8 +2,8 @@ package com.example.abi
 
 fun string describeRole(string role) {
   val string label = match role {
-    "ops" = "[ops]"
-    "ml" = "[ml]"
+    "ops" -> "[ops]"
+    "ml" -> "[ml]"
   } else "[other]"
   return label
 }
@@ -14,7 +14,7 @@ fun void runMapControlTest() {
   val int opsWeight = weights["ops"]
   val int mlWeight = weights["ml"]
   val string tier = match mlWeight {
-    5 = "heavy"
+    5 -> "heavy"
   } else "light"
   val string? alias = null
   val string safeAlias = alias ?: "anonymous"

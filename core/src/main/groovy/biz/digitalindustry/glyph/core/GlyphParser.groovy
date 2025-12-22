@@ -20,8 +20,11 @@ import biz.digitalindustry.glyph.core.ast.MapEntryExpr
 import biz.digitalindustry.glyph.core.ast.MatchCase
 import biz.digitalindustry.glyph.core.ast.MatchExpr
 import biz.digitalindustry.glyph.core.ast.Mutability
+import biz.digitalindustry.glyph.core.ast.Pattern
+import biz.digitalindustry.glyph.core.ast.RecordFieldPattern
 import biz.digitalindustry.glyph.core.ast.NullLiteral
 import biz.digitalindustry.glyph.core.ast.Param
+import biz.digitalindustry.glyph.core.ast.RecordPattern
 import biz.digitalindustry.glyph.core.ast.PrintStmt
 import biz.digitalindustry.glyph.core.ast.Program
 import biz.digitalindustry.glyph.core.ast.RecordDecl
@@ -35,8 +38,17 @@ import biz.digitalindustry.glyph.core.ast.ElvisExpr
 import biz.digitalindustry.glyph.core.ast.ArrayAllocExpr
 import biz.digitalindustry.glyph.core.ast.MapLiteralExpr
 import biz.digitalindustry.glyph.core.ast.VarDecl
+import biz.digitalindustry.glyph.core.ast.LambdaExpr
 import biz.digitalindustry.glyph.core.ast.VarRef
+import biz.digitalindustry.glyph.core.ast.TypeAliasDecl
 import biz.digitalindustry.glyph.core.ast.CallExpr
+import biz.digitalindustry.glyph.core.ast.VarPattern
+import biz.digitalindustry.glyph.core.ast.WildcardPattern
+import biz.digitalindustry.glyph.core.ast.SumTypeDecl
+import biz.digitalindustry.glyph.core.ast.VariantDecl
+import biz.digitalindustry.glyph.core.ast.VariantField
+import biz.digitalindustry.glyph.core.ast.VariantPattern
+import biz.digitalindustry.glyph.core.ast.LiteralPattern
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -95,19 +107,50 @@ class Parser {
             imports.add(parseImportDecl())
             consumeTerminators()
         }
+        List<TypeAliasDecl> aliases = []
         List<RecordDecl> records = []
+        List<SumTypeDecl> sumTypes = []
         List<FunctionDecl> functions = []
         while (!check(TokenType.EOF)) {
             if (check(TokenType.PACKAGE) || check(TokenType.IMPORT)) {
                 throw new IllegalArgumentException("package/import declarations must appear at the top of the file${pos(current)}")
             }
-            if (check(TokenType.RECORD)) {
+            if (check(TokenType.TYPE)) {
+                if (isSumTypeAhead()) {
+                    sumTypes.add(parseSumTypeDecl())
+                } else {
+                    aliases.add(parseTypeAlias())
+                }
+            } else if (check(TokenType.RECORD)) {
                 records.add(parseRecordDecl())
             } else {
                 functions.add(parseFunction())
             }
         }
-        return new Program(packageDecl, imports, records, functions)
+        return new Program(packageDecl, imports, aliases, records, sumTypes, functions)
+    }
+
+    private boolean isSumTypeAhead() {
+        int look = pos
+        if (look >= tokens.size() || tokens[look].type != TokenType.TYPE) {
+            return false
+        }
+        look++
+        if (look >= tokens.size() || tokens[look].type != TokenType.IDENT) {
+            return false
+        }
+        look++
+        if (look >= tokens.size() || tokens[look].type != TokenType.EQUAL) {
+            return false
+        }
+        look++
+        while (look < tokens.size() && tokens[look].type == TokenType.SEMICOLON) {
+            look++
+        }
+        if (look >= tokens.size()) {
+            return false
+        }
+        return tokens[look].type == TokenType.PIPE
     }
 
     private PackageDecl parsePackageDecl() {
@@ -120,6 +163,44 @@ class Parser {
         Token keyword = previous
         String name = parseQualifiedName("import statement")
         return new ImportDecl(name, pos(keyword))
+    }
+
+    private TypeAliasDecl parseTypeAlias() {
+        Token keyword = consume(TokenType.TYPE, "Expected 'type'")
+        Token nameTok = consume(TokenType.IDENT, 'Expected type alias name')
+        consume(TokenType.EQUAL, "Expected '=' in type alias")
+        TypedToken targetType = parseType()
+        consumeTerminators()
+        return new TypeAliasDecl(nameTok.lexeme, targetType.typeName, pos(keyword))
+    }
+
+    private SumTypeDecl parseSumTypeDecl() {
+        Token keyword = consume(TokenType.TYPE, "Expected 'type'")
+        Token nameTok = consume(TokenType.IDENT, 'Expected sum type name')
+        consume(TokenType.EQUAL, "Expected '=' in sum type declaration")
+        List<VariantDecl> variants = []
+        do {
+            consume(TokenType.PIPE, "Expected '|' before variant declaration")
+            variants.add(parseVariantDecl())
+        } while (check(TokenType.PIPE))
+        consumeTerminators()
+        return new SumTypeDecl(nameTok.lexeme, variants, pos(keyword))
+    }
+
+    private VariantDecl parseVariantDecl() {
+        Token variantName = consume(TokenType.IDENT, 'Expected variant name')
+        consume(TokenType.LPAREN, "Expected '(' after variant name")
+        List<VariantField> fields = []
+        if (!check(TokenType.RPAREN)) {
+            do {
+                Token fieldName = consume(TokenType.IDENT, 'Expected variant field name')
+                consume(TokenType.COLON, "Expected ':' in variant field")
+                TypedToken typeTok = parseType()
+                fields.add(new VariantField(fieldName.lexeme, typeTok.typeName, pos(fieldName)))
+            } while (match(TokenType.COMMA))
+        }
+        consume(TokenType.RPAREN, "Expected ')' after variant fields")
+        return new VariantDecl(variantName.lexeme, fields, pos(variantName))
     }
 
     private RecordDecl parseRecordDecl() {
@@ -339,7 +420,29 @@ class Parser {
         if (match(TokenType.MATCH)) {
             return parseMatchExpr()
         }
-        return parseSum()
+        return parseEquality()
+    }
+
+    private Expr parseEquality() {
+        Expr expr = parseComparison()
+        while (match(TokenType.EQUAL_EQUAL) || match(TokenType.BANG_EQUAL)) {
+            Token opTok = previous
+            String op = opTok.lexeme
+            Expr right = parseComparison()
+            expr = new BinaryOp(op, expr, right, pos(opTok))
+        }
+        return expr
+    }
+
+    private Expr parseComparison() {
+        Expr expr = parseSum()
+        while (match(TokenType.LT) || match(TokenType.GT) || match(TokenType.LTE) || match(TokenType.GTE)) {
+            Token opTok = previous
+            String op = opTok.lexeme
+            Expr right = parseSum()
+            expr = new BinaryOp(op, expr, right, pos(opTok))
+        }
+        return expr
     }
 
     private Expr parseSum() {
@@ -401,6 +504,9 @@ class Parser {
             Token tok = previous
             return new StringLiteral(tok.lexeme, pos(tok))
         }
+        if (match(TokenType.FUN)) {
+            return parseLambda(previous)
+        }
         if (match(TokenType.LBRACKET)) {
             return parseCollectionExpr(previous)
         }
@@ -427,6 +533,22 @@ class Parser {
             return expr
         }
         throw new IllegalArgumentException("Unexpected token: ${current.lexeme}")
+    }
+
+    private LambdaExpr parseLambda(Token funToken) {
+        String returnType = null
+        if (!check(TokenType.LPAREN)) {
+            TypedToken typeTok = parseType()
+            returnType = typeTok.typeName
+        }
+        consume(TokenType.LPAREN, "Expected '(' after 'fun'")
+        List<Param> params = []
+        if (!check(TokenType.RPAREN)) {
+            params = parseParams()
+        }
+        consume(TokenType.RPAREN, "Expected ')' after lambda parameters")
+        Block body = parseBlock()
+        return new LambdaExpr(params, body, returnType, [], null, pos(funToken))
     }
 
     private Expr parseRecordLiteral(Token nameTok) {
@@ -504,16 +626,78 @@ class Parser {
         consume(TokenType.LBRACE, "Expected '{' after match target")
         List<MatchCase> cases = []
         while (!check(TokenType.RBRACE) && !check(TokenType.EOF)) {
-            Expr key = parseExpr()
-            Token eq = consume(TokenType.EQUAL, "Expected '=' in match case")
+            Pattern pattern = parsePattern()
+            Token arrow = consume(TokenType.ARROW, "Expected '->' in match case")
             Expr value = parseExpr()
-            cases.add(new MatchCase(key, value, pos(eq)))
+            cases.add(new MatchCase(pattern, value, pos(arrow)))
             consumeTerminators()
         }
         consume(TokenType.RBRACE, "Expected '}' after match cases")
-        consume(TokenType.ELSE, "Expected 'else' after match block")
-        Expr elseExpr = parseExpr()
+        Expr elseExpr = null
+        if (match(TokenType.ELSE)) {
+            elseExpr = parseExpr()
+        }
         return new MatchExpr(target, cases, elseExpr, pos(start))
+    }
+
+    private Pattern parsePattern() {
+        if (match(TokenType.STRING_LITERAL)) {
+            Token tok = previous
+            return new LiteralPattern(new StringLiteral(tok.lexeme, pos(tok)), pos(tok))
+        }
+        if (match(TokenType.INT_LITERAL)) {
+            Token tok = previous
+            return new LiteralPattern(new IntLiteral(Long.parseLong(tok.lexeme), pos(tok)), pos(tok))
+        }
+        if (match(TokenType.BOOL_LITERAL)) {
+            Token tok = previous
+            return new LiteralPattern(new BoolLiteral(Boolean.parseBoolean(tok.lexeme), pos(tok)), pos(tok))
+        }
+        if (match(TokenType.NULL)) {
+            Token tok = previous
+            return new LiteralPattern(new NullLiteral(pos(tok)), pos(tok))
+        }
+        if (match(TokenType.IDENT)) {
+            Token ident = previous
+            if (ident.lexeme == '_') {
+                return new WildcardPattern(pos(ident))
+            }
+            if (check(TokenType.LPAREN)) {
+                return parseVariantPattern(ident)
+            }
+            if (isTypeIdentifier(ident) && check(TokenType.LBRACE)) {
+                return parseRecordPattern(ident)
+            }
+            return new VarPattern(ident.lexeme, pos(ident))
+        }
+        throw new IllegalArgumentException("Invalid pattern near ${current.lexeme}${pos(current)}")
+    }
+
+    private Pattern parseRecordPattern(Token typeToken) {
+        consume(TokenType.LBRACE, "Expected '{' after record pattern type")
+        List<RecordFieldPattern> fields = []
+        if (!check(TokenType.RBRACE)) {
+            do {
+                Token fieldName = consume(TokenType.IDENT, 'Expected field name in pattern')
+                consume(TokenType.EQUAL, "Expected '=' in record pattern")
+                Pattern fieldPattern = parsePattern()
+                fields.add(new RecordFieldPattern(fieldName.lexeme, fieldPattern, pos(fieldName)))
+            } while (match(TokenType.COMMA))
+        }
+        consume(TokenType.RBRACE, "Expected '}' after record pattern")
+        return new RecordPattern(typeToken.lexeme, fields, pos(typeToken))
+    }
+
+    private Pattern parseVariantPattern(Token variantName) {
+        consume(TokenType.LPAREN, "Expected '(' after variant pattern")
+        List<Pattern> fields = []
+        if (!check(TokenType.RPAREN)) {
+            do {
+                fields.add(parsePattern())
+            } while (match(TokenType.COMMA))
+        }
+        consume(TokenType.RPAREN, "Expected ')' after variant pattern")
+        return new VariantPattern(null, variantName.lexeme, fields, pos(variantName))
     }
 
     private void consumeTerminators() {
@@ -622,7 +806,16 @@ class Lexer {
                     case '+':
                         tokens.add(single(TokenType.PLUS, '+' as String)); break
                     case '-':
-                        tokens.add(single(TokenType.MINUS, '-' as String)); break
+                        if (peekNext() == '>') {
+                            int startLine = line
+                            int startCol = column
+                            advance()
+                            advance()
+                            tokens.add(new Token(TokenType.ARROW, '->', startLine, startCol))
+                        } else {
+                            tokens.add(single(TokenType.MINUS, '-' as String))
+                        }
+                        break
                     case '*':
                         tokens.add(single(TokenType.STAR, '*' as String)); break
                     case '/':
@@ -634,13 +827,57 @@ class Lexer {
                         }
                         break
                     case '=':
-                        tokens.add(single(TokenType.EQUAL, '=' as String)); break
+                        if (peekNext() == '=') {
+                            int startLine = line
+                            int startCol = column
+                            advance()
+                            advance()
+                            tokens.add(new Token(TokenType.EQUAL_EQUAL, "==", startLine, startCol))
+                        } else {
+                            tokens.add(single(TokenType.EQUAL, '=' as String))
+                        }
+                        break
+                    case '!':
+                        if (peekNext() == '=') {
+                            int startLine = line
+                            int startCol = column
+                            advance()
+                            advance()
+                            tokens.add(new Token(TokenType.BANG_EQUAL, "!=", startLine, startCol))
+                        } else {
+                            throw new IllegalArgumentException("Unexpected character '!' at ${line}:${column}")
+                        }
+                        break
+                    case '<':
+                        if (peekNext() == '=') {
+                            int startLine = line
+                            int startCol = column
+                            advance()
+                            advance()
+                            tokens.add(new Token(TokenType.LTE, "<=", startLine, startCol))
+                        } else {
+                            tokens.add(single(TokenType.LT, '<' as String))
+                        }
+                        break
+                    case '>':
+                        if (peekNext() == '=') {
+                            int startLine = line
+                            int startCol = column
+                            advance()
+                            advance()
+                            tokens.add(new Token(TokenType.GTE, ">=", startLine, startCol))
+                        } else {
+                            tokens.add(single(TokenType.GT, '>' as String))
+                        }
+                        break
                     case ':':
                         tokens.add(single(TokenType.COLON, ':' as String)); break
                     case ',':
                         tokens.add(single(TokenType.COMMA, ',' as String)); break
                     case ';':
                         tokens.add(single(TokenType.SEMICOLON, ';' as String)); break
+                    case '|':
+                        tokens.add(single(TokenType.PIPE, '|' as String)); break
                     case '?':
                         if (peekNext() == '.') {
                             int startLine = line
@@ -691,6 +928,7 @@ class Lexer {
             case 'else': return new Token(TokenType.ELSE, text, startLine, startCol)
             case 'match': return new Token(TokenType.MATCH, text, startLine, startCol)
             case 'record': return new Token(TokenType.RECORD, text, startLine, startCol)
+            case 'type': return new Token(TokenType.TYPE, text, startLine, startCol)
             case 'null': return new Token(TokenType.NULL, text, startLine, startCol)
             case 'package': return new Token(TokenType.PACKAGE, text, startLine, startCol)
             case 'import': return new Token(TokenType.IMPORT, text, startLine, startCol)
@@ -785,10 +1023,13 @@ class Token {
 
 enum TokenType {
     FUN, VOID, INT_TYPE, LONG_TYPE, FLOAT_TYPE, DOUBLE_TYPE, CHAR_TYPE, BYTES_TYPE, STRING_TYPE, BOOL_TYPE,
-    VAL, VAR, CONST, PRINT, RETURN, IF, ELSE, MATCH, RECORD, NULL, PACKAGE, IMPORT,
+    VAL, VAR, CONST, PRINT, RETURN, IF, ELSE, MATCH, RECORD, TYPE, NULL, PACKAGE, IMPORT,
     IDENT, INT_LITERAL, STRING_LITERAL, BOOL_LITERAL,
     LBRACE, RBRACE, LPAREN, RPAREN, LBRACKET, RBRACKET, DOT, SAFE_DOT,
-    PLUS, MINUS, STAR, SLASH, EQUAL, COLON, COMMA, SEMICOLON, QUESTION,
+    PLUS, MINUS, STAR, SLASH,
+    EQUAL, EQUAL_EQUAL, BANG_EQUAL,
+    LT, LTE, GT, GTE,
+    COLON, COMMA, SEMICOLON, QUESTION, ARROW, PIPE,
     EOF
 }
 

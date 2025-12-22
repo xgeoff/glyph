@@ -1,0 +1,8 @@
+plugins {
+    id 'biz.digitalindustry.glyph'
+}
+
+glyph {
+    sourceDir = file('src/main/glyph')
+    entryFile = file('src/main/glyph/com/example/closures/main.gly')
+}

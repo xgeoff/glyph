@@ -1,0 +1,48 @@
+fun void main() {
+  val int globalOffset = 7
+
+  val calibrate = fun int (int baseline) {
+    val int baselineValue = baseline
+    val shift = fun int (int reading) {
+      val injectOffset = fun int (int value) {
+        value + globalOffset
+      }
+      injectOffset(reading + baselineValue)
+    }
+    shift(3)
+  }
+
+  val pipeline = fun int (int signal) {
+    val first = fun int (int value) {
+      value + globalOffset
+    }
+    val second = fun int (int value) {
+      val doubleIt = fun int (int candidate) {
+        candidate + candidate
+      }
+      doubleIt(value)
+    }
+    val third = fun int (int value) {
+      val dampen = fun int (int reading) {
+        reading - globalOffset
+      }
+      dampen(value)
+    }
+    third(second(first(signal)))
+  }
+
+  val nested = fun int (int seed) {
+    val int seedValue = seed
+    val stage = fun int (int value) {
+      val localBoost = fun int (int reading) {
+        reading + seedValue
+      }
+      localBoost(value + globalOffset)
+    }
+    stage(seedValue)
+  }
+
+  print(calibrate(10))
+  print(pipeline(5))
+  print(nested(2))
+}

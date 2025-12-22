@@ -20,6 +20,7 @@ func main() {
 	var helpFlag bool
 	var helpShort bool
 	var runWasm bool
+	var libPath string
 
 	flag.StringVar(&sourcePath, "file", "", "Path to a Glyph source file")
 	flag.StringVar(&rootPath, "root", "", "Project root directory (defaults to the source file directory)")
@@ -27,6 +28,7 @@ func main() {
 	flag.BoolVar(&helpFlag, "help", false, "Show help")
 	flag.BoolVar(&helpShort, "h", false, "Show help (short)")
 	flag.BoolVar(&runWasm, "run-wasm", false, "Execute a compiled WASM module via wasmtime")
+	flag.StringVar(&libPath, "libpath", "", "Path to Glyph standard library sources")
 	flag.Parse()
 
 	if helpFlag || helpShort {
@@ -52,7 +54,7 @@ func main() {
 			}
 			rootPath = cwd
 		}
-		runInline(inlineCode, rootPath)
+		runInline(inlineCode, rootPath, libPath)
 		return
 	}
 
@@ -68,15 +70,17 @@ func main() {
 		fail("resolve root path: %v", err)
 	}
 
+	resolvedLib := resolveLibPath(absRoot, libPath)
+
 	if runWasm {
 		runWasmModule(absSource)
 		return
 	}
 
-	execute(absSource, absRoot, nil)
+	execute(absSource, absRoot, nil, resolvedLib)
 }
 
-func runInline(code string, root string) {
+func runInline(code string, root string, libPath string) {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		fail("resolve root path: %v", err)
@@ -85,11 +89,17 @@ func runInline(code string, root string) {
 	if err != nil {
 		fail("parse error: %v", err)
 	}
-	execute("", absRoot, program)
+	resolvedLib := resolveLibPath(absRoot, libPath)
+	execute("", absRoot, program, resolvedLib)
 }
 
-func execute(absSource string, absRoot string, override *ast.Program) {
-	index, err := project.BuildIndex(absRoot)
+func execute(absSource string, absRoot string, override *ast.Program, libPath string) {
+	var libs []string
+	if libPath != "" {
+		libs = append(libs, libPath)
+	}
+
+	index, err := project.BuildIndex(absRoot, libs...)
 	if err != nil {
 		fail("failed to index project: %v", err)
 	}
@@ -130,6 +140,7 @@ Options:
   --root <dir>           Project root directory (defaults to source directory)
   -e <code>              Execute inline Glyph code snippet
   --run-wasm             Run a compiled WASM module via wasmtime
+  --libpath <dir>        Path to Glyph standard library sources
   --help, -h             Show this help message`)
 }
 
@@ -155,4 +166,38 @@ func runWasmModule(path string) {
 func fail(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
 	os.Exit(1)
+}
+
+func resolveLibPath(root string, override string) string {
+	if override != "" {
+		return absIfPossible(override)
+	}
+	candidates := []string{}
+	if env := os.Getenv("GLYPH_LIBPATH"); env != "" {
+		candidates = append(candidates, env)
+	}
+	dir := root
+	for i := 0; i < 4; i++ {
+		candidates = append(candidates, filepath.Join(dir, "glyph-stdlib", "src", "main", "glyph"))
+		dir = filepath.Dir(dir)
+	}
+	for _, cand := range candidates {
+		if cand == "" {
+			continue
+		}
+		if info, err := os.Stat(cand); err == nil && info.IsDir() {
+			return absIfPossible(cand)
+		}
+	}
+	return ""
+}
+
+func absIfPossible(path string) string {
+	if path == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }

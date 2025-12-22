@@ -1,10 +1,12 @@
 package ast
 
 type Program struct {
-	Package   *PackageDecl
-	Imports   []*ImportDecl
-	Records   []*RecordDecl
-	Functions []*FunctionDecl
+	Package     *PackageDecl
+	Imports     []*ImportDecl
+	TypeAliases []*TypeAliasDecl
+	Records     []*RecordDecl
+	SumTypes    []*SumTypeDecl
+	Functions   []*FunctionDecl
 }
 
 type PackageDecl struct {
@@ -13,6 +15,26 @@ type PackageDecl struct {
 
 type ImportDecl struct {
 	Name string
+}
+
+type TypeAliasDecl struct {
+	Name       string
+	TargetType string
+}
+
+type SumTypeDecl struct {
+	Name     string
+	Variants []*VariantDecl
+}
+
+type VariantDecl struct {
+	Name   string
+	Fields []*VariantField
+}
+
+type VariantField struct {
+	Name string
+	Type string
 }
 
 type FunctionDecl struct {
@@ -89,7 +111,7 @@ type StringLiteral struct {
 }
 
 type BinaryOp struct {
-	Op         string
+	Op          string
 	Left, Right Expr
 }
 
@@ -121,8 +143,8 @@ type MatchExpr struct {
 }
 
 type MatchCase struct {
-	Key   Expr
-	Value Expr
+	Pattern Pattern
+	Value   Expr
 }
 
 type RecordLiteral struct {
@@ -176,6 +198,37 @@ type LambdaExpr struct {
 	Params     []*Param
 	ReturnType string
 	Body       *Block
+	Captures   []string
+}
+
+type Pattern interface {
+	patternNode()
+}
+
+type WildcardPattern struct{}
+
+type VarPattern struct {
+	Name string
+}
+
+type LiteralPattern struct {
+	Literal Expr
+}
+
+type RecordPattern struct {
+	TypeName string
+	Fields   []*RecordFieldPattern
+}
+
+type VariantPattern struct {
+	TypeName string
+	Variant  string
+	Fields   []Pattern
+}
+
+type RecordFieldPattern struct {
+	Field   string
+	Pattern Pattern
 }
 
 func (VarDecl) stmtNode()    {}
@@ -184,22 +237,29 @@ func (ExprStmt) stmtNode()   {}
 func (AssignStmt) stmtNode() {}
 func (ReturnStmt) stmtNode() {}
 
-func (IntLiteral) exprNode()    {}
-func (BoolLiteral) exprNode()   {}
-func (NullLiteral) exprNode()   {}
-func (StringLiteral) exprNode() {}
-func (BinaryOp) exprNode()      {}
-func (VarRef) exprNode()        {}
-func (IfExpr) exprNode()        {}
-func (TernaryExpr) exprNode()   {}
-func (ElvisExpr) exprNode()     {}
-func (MatchExpr) exprNode()     {}
-func (RecordLiteral) exprNode() {}
-func (FieldAccess) exprNode()   {}
+func (IntLiteral) exprNode()      {}
+func (BoolLiteral) exprNode()     {}
+func (NullLiteral) exprNode()     {}
+func (StringLiteral) exprNode()   {}
+func (BinaryOp) exprNode()        {}
+func (VarRef) exprNode()          {}
+func (IfExpr) exprNode()          {}
+func (TernaryExpr) exprNode()     {}
+func (ElvisExpr) exprNode()       {}
+func (MatchExpr) exprNode()       {}
+func (RecordLiteral) exprNode()   {}
+func (FieldAccess) exprNode()     {}
 func (SafeFieldAccess) exprNode() {}
-func (IndexAccess) exprNode()   {}
-func (ArrayAllocExpr) exprNode() {}
-func (MapAllocExpr) exprNode()  {}
-func (MapLiteralExpr) exprNode() {}
-func (CallExpr) exprNode()      {}
-func (LambdaExpr) exprNode()    {}
+func (IndexAccess) exprNode()     {}
+func (ArrayAllocExpr) exprNode()  {}
+func (MapAllocExpr) exprNode()    {}
+func (MapLiteralExpr) exprNode()  {}
+func (CallExpr) exprNode()        {}
+func (LambdaExpr) exprNode()      {}
+
+func (WildcardPattern) patternNode()    {}
+func (VarPattern) patternNode()         {}
+func (LiteralPattern) patternNode()     {}
+func (RecordPattern) patternNode()      {}
+func (VariantPattern) patternNode()     {}
+func (RecordFieldPattern) patternNode() {}

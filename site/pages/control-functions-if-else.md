@@ -92,5 +92,4 @@ val result = match value {
 | `if/else` | `if x > 10 { ... } else { ... }`           | ✅                | Only if assigned    | Preferred for branching logic       |
 | Ternary   | `x > 10 ? "yes" : "no"`                    | ✅                | Always required     | Optional sugar for short logic      |
 | Elvis     | `val y = x ?: 0`                           | ✅                | Always required     | Null-coalescing fallback            |
-| `match`   | `match code { 200 = "OK" } else "Unknown"` | ✅                | ✅ unless exhaustive | No fallthrough; clean default style |
-
+| `match`   | `match code { 200 -> "OK" } else "Unknown"` | ✅                | ✅ unless exhaustive | No fallthrough; clean default style |

@@ -15,7 +15,12 @@ import biz.digitalindustry.glyph.core.ast.IndexAccess
 import biz.digitalindustry.glyph.core.ast.IntLiteral
 import biz.digitalindustry.glyph.core.ast.MapAllocExpr
 import biz.digitalindustry.glyph.core.ast.MapLiteralExpr
+import biz.digitalindustry.glyph.core.ast.MatchCase
 import biz.digitalindustry.glyph.core.ast.MatchExpr
+import biz.digitalindustry.glyph.core.ast.Pattern
+import biz.digitalindustry.glyph.core.ast.RecordPattern
+import biz.digitalindustry.glyph.core.ast.SumTypeDecl
+import biz.digitalindustry.glyph.core.ast.RecordFieldPattern
 import biz.digitalindustry.glyph.core.ast.PrintStmt
 import biz.digitalindustry.glyph.core.ast.Program
 import biz.digitalindustry.glyph.core.ast.RecordDecl
@@ -28,8 +33,14 @@ import biz.digitalindustry.glyph.core.ast.ElvisExpr
 import biz.digitalindustry.glyph.core.ast.VarDecl
 import biz.digitalindustry.glyph.core.ast.VarRef
 import biz.digitalindustry.glyph.core.ast.CallExpr
+import biz.digitalindustry.glyph.core.ast.VarPattern
+import biz.digitalindustry.glyph.core.ast.WildcardPattern
+import biz.digitalindustry.glyph.core.ast.LiteralPattern
+import biz.digitalindustry.glyph.core.ast.VariantPattern
+import biz.digitalindustry.glyph.core.ast.LambdaExpr
 
 import java.util.Collections
+import java.util.Objects
 
 interface Interpreter {
     void eval(Program program)
@@ -38,6 +49,7 @@ interface Interpreter {
 class SimpleInterpreter implements Interpreter {
     public static final SimpleInterpreter INSTANCE = new SimpleInterpreter()
     private Map<String, FunctionDecl> activeFunctions = [:]
+    private Map<String, VariantRuntimeInfo> activeVariants = [:]
 
     @Override
     void eval(Program program) {
@@ -51,16 +63,37 @@ class SimpleInterpreter implements Interpreter {
         new TypeChecker(effectiveIndex).check(program)
         Map<String, FunctionDecl> functions = symbols.functions
         Map<String, RecordDecl> recordDefs = symbols.records
+        Map<String, SumTypeDecl> sumTypes = new LinkedHashMap<>(symbols.sumTypes ?: [:])
+        program.sumTypes.each { sumType -> sumTypes[sumType.name] = sumType }
+        Map<String, VariantRuntimeInfo> variants = buildVariantRuntimeInfo(sumTypes, functions)
         FunctionDecl mainFn = functions['main']
         if (!mainFn) {
             throw new IllegalStateException('main function not found')
         }
         this.activeFunctions = functions
+        this.activeVariants = variants
         try {
             invokeFunction(mainFn, Collections.emptyList(), recordDefs)
         } finally {
             this.activeFunctions = [:]
+            this.activeVariants = [:]
         }
+    }
+
+    private Map<String, VariantRuntimeInfo> buildVariantRuntimeInfo(Map<String, SumTypeDecl> sumTypes,
+                                                                    Map<String, FunctionDecl> functions) {
+        Map<String, VariantRuntimeInfo> variants = [:]
+        sumTypes?.values()?.each { SumTypeDecl sumType ->
+            sumType?.variants?.each { variant ->
+                if (variants.containsKey(variant.name) || functions.containsKey(variant.name)) {
+                    throw new IllegalStateException("Constructor ${variant.name} already defined")
+                }
+                variants[variant.name] = new VariantRuntimeInfo(sumType.name,
+                        variant.name,
+                        variant.fields?.collect { it.name } ?: Collections.emptyList())
+            }
+        }
+        return variants
     }
 
     private Object invokeFunction(FunctionDecl fn, List<Object> args, Map<String, RecordDecl> recordDefs) {
@@ -75,37 +108,9 @@ class SimpleInterpreter implements Interpreter {
             env[param.name] = args[idx]
         }
         try {
-            execBlock(fn.body, env, recordDefs)
+            return evalBlockValue(fn.body, env, recordDefs)
         } catch (ReturnSignal rs) {
             return rs.value
-        }
-        return null
-    }
-
-    private void execBlock(Block block, Map<String, Object> env, Map<String, RecordDecl> recordDefs) {
-        block.statements.each { stmt ->
-            switch (stmt) {
-                case VarDecl:
-                    Object value = evalExpr(stmt.value, env, recordDefs)
-                    env[stmt.name] = value
-                    break
-                case AssignStmt:
-                    applyAssign(stmt, env, recordDefs)
-                    break
-                case PrintStmt:
-                    Object value = evalExpr(stmt.expr, env, recordDefs)
-                    println value
-                    break
-                case ExprStmt:
-                    evalExpr(stmt.expr, env, recordDefs)
-                    break
-                case ReturnStmt:
-                    Object value = stmt.expr != null ? evalExpr(stmt.expr, env, recordDefs) : null
-                    throw new ReturnSignal(value)
-                    break
-                default:
-                    throw new IllegalStateException("Unknown statement type: ${stmt?.class?.simpleName}")
-            }
         }
     }
 
@@ -149,21 +154,50 @@ class SimpleInterpreter implements Interpreter {
                 return evalMatch(expr, env, recordDefs)
             case CallExpr:
                 return evalCall(expr as CallExpr, env, recordDefs)
+            case LambdaExpr:
+                return evalLambda(expr as LambdaExpr, env)
             case BinaryOp:
                 Object left = evalExpr(expr.left, env, recordDefs)
                 Object right = evalExpr(expr.right, env, recordDefs)
-                if (!(left instanceof Number) || !(right instanceof Number)) {
-                    throw new IllegalArgumentException("Operator ${expr.op} expects integers")
-                }
-                long l = ((Number) left).longValue()
-                long r = ((Number) right).longValue()
                 switch (expr.op) {
-                    case '+': return l + r
-                    case '-': return l - r
-                    case '*': return l * r
+                    case '+':
+                    case '-':
+                    case '*':
                     case '/':
-                        if (r == 0L) throw new IllegalArgumentException('division by zero')
-                        return l / r
+                        if (!(left instanceof Number) || !(right instanceof Number)) {
+                            throw new IllegalArgumentException("Operator ${expr.op} expects integers")
+                        }
+                        long l = ((Number) left).longValue()
+                        long r = ((Number) right).longValue()
+                        switch (expr.op) {
+                            case '+': return l + r
+                            case '-': return l - r
+                            case '*': return l * r
+                            case '/':
+                                if (r == 0L) throw new IllegalArgumentException('division by zero')
+                                return l / r
+                        }
+                        break
+                    case '<':
+                    case '<=':
+                    case '>':
+                    case '>=':
+                        if (!(left instanceof Number) || !(right instanceof Number)) {
+                            throw new IllegalArgumentException("Operator ${expr.op} expects integers")
+                        }
+                        long lc = ((Number) left).longValue()
+                        long rc = ((Number) right).longValue()
+                        switch (expr.op) {
+                            case '<': return lc < rc
+                            case '<=': return lc <= rc
+                            case '>': return lc > rc
+                            case '>=': return lc >= rc
+                        }
+                        break
+                    case '==':
+                        return Objects.equals(left, right)
+                    case '!=':
+                        return !Objects.equals(left, right)
                     default:
                         throw new IllegalStateException("Unknown operator ${expr.op}")
                 }
@@ -196,13 +230,18 @@ class SimpleInterpreter implements Interpreter {
 
     private Object evalMatch(MatchExpr expr, Map<String, Object> env, Map<String, RecordDecl> recordDefs) {
         Object target = evalExpr(expr.target, env, recordDefs)
-        for (def c : expr.cases) {
-            Object key = evalExpr(c.key, env, recordDefs)
-            if (target == key || (target != null && target.equals(key))) {
-                return evalExpr(c.value, env, recordDefs)
+        for (MatchCase c in expr.cases) {
+            Map<String, Object> bindings = matchPattern(c.pattern, target, recordDefs)
+            if (bindings != null) {
+                Map<String, Object> branchEnv = new LinkedHashMap<>(env)
+                bindings.each { k, v -> branchEnv[k] = v }
+                return evalExpr(c.value, branchEnv, recordDefs)
             }
         }
-        return evalExpr(expr.elseExpr, env, recordDefs)
+        if (expr.elseExpr != null) {
+            return evalExpr(expr.elseExpr, env, recordDefs)
+        }
+        return null
     }
 
     private Object evalBlockValue(Block block, Map<String, Object> env, Map<String, RecordDecl> recordDefs) {
@@ -272,12 +311,52 @@ class SimpleInterpreter implements Interpreter {
     }
 
     private Object evalCall(CallExpr expr, Map<String, Object> env, Map<String, RecordDecl> recordDefs) {
+        if (env.containsKey(expr.callee)) {
+            Object candidate = env[expr.callee]
+            if (candidate instanceof ClosureValue) {
+                List<Object> args = expr.arguments.collect { arg -> evalExpr(arg, env, recordDefs) }
+                return invokeClosure(candidate as ClosureValue, args, recordDefs)
+            }
+        }
+        VariantRuntimeInfo constructor = activeVariants[expr.callee]
+        if (constructor) {
+            List<Object> args = expr.arguments.collect { arg -> evalExpr(arg, env, recordDefs) }
+            if (args.size() != constructor.fieldNames.size()) {
+                throw new IllegalStateException("Constructor ${expr.callee} expects ${constructor.fieldNames.size()} argument(s) but received ${args.size()}")
+            }
+            return new VariantInstance(constructor.sumTypeName, constructor.variantName, args)
+        }
         FunctionDecl fn = activeFunctions[expr.callee]
         if (!fn) {
             throw new IllegalStateException("Unknown function ${expr.callee}")
         }
         List<Object> args = expr.arguments.collect { arg -> evalExpr(arg, env, recordDefs) }
         return invokeFunction(fn, args, recordDefs)
+    }
+
+    private ClosureValue evalLambda(LambdaExpr expr, Map<String, Object> env) {
+        Map<String, Object> captured = [:]
+        expr.captures.each { cap ->
+            captured[cap.name] = env[cap.name]
+        }
+        return new ClosureValue(expr, captured)
+    }
+
+    private Object invokeClosure(ClosureValue closure, List<Object> args, Map<String, RecordDecl> recordDefs) {
+        LambdaExpr lambda = closure.lambda
+        if (lambda.params.size() != args.size()) {
+            throw new IllegalStateException("Callable expects ${lambda.params.size()} argument(s) but received ${args.size()}")
+        }
+        Map<String, Object> frame = [:]
+        frame.putAll(closure.captured)
+        lambda.params.eachWithIndex { param, idx ->
+            frame[param.name] = args[idx]
+        }
+        try {
+            return evalBlockValue(lambda.body, frame, recordDefs)
+        } catch (ReturnSignal rs) {
+            return rs.value
+        }
     }
 
     private Object evalRecordLiteral(RecordLiteral expr, Map<String, Object> env, Map<String, RecordDecl> recordDefs) {
@@ -354,6 +433,101 @@ class SimpleInterpreter implements Interpreter {
         }
         return map
     }
+
+    private Map<String, Object> matchPattern(Pattern pattern,
+                                             Object value,
+                                             Map<String, RecordDecl> recordDefs) {
+        switch (pattern) {
+            case WildcardPattern:
+                return [:]
+            case VarPattern:
+                Map<String, Object> single = [:]
+                single[(pattern as VarPattern).name] = value
+                return single
+            case LiteralPattern:
+                Object expected = literalValue((pattern as LiteralPattern).literal)
+                return Objects.equals(value, expected) ? [:] : null
+            case RecordPattern:
+                return matchRecordPattern(pattern as RecordPattern, value, recordDefs)
+            case VariantPattern:
+                return matchVariantPattern(pattern as VariantPattern, value, recordDefs)
+            default:
+                throw new IllegalStateException("Unsupported pattern ${pattern?.class?.simpleName}")
+        }
+    }
+
+    private Map<String, Object> matchRecordPattern(RecordPattern pattern,
+                                                   Object value,
+                                                   Map<String, RecordDecl> recordDefs) {
+        if (!(value instanceof RecordInstance)) {
+            return null
+        }
+        RecordInstance rec = value as RecordInstance
+        if (rec.name != pattern.typeName) {
+            return null
+        }
+        Map<String, Object> bindings = [:]
+        for (RecordFieldPattern fieldPattern : pattern.fields) {
+            Object fieldValue = rec.fields[fieldPattern.field]
+            if (!rec.fields.containsKey(fieldPattern.field)) {
+                return null
+            }
+            Map<String, Object> nested = matchPattern(fieldPattern.pattern, fieldValue, recordDefs)
+            if (nested == null) {
+                return null
+            }
+            bindings.putAll(nested)
+        }
+        return bindings
+    }
+
+    private Map<String, Object> matchVariantPattern(VariantPattern pattern,
+                                                    Object value,
+                                                    Map<String, RecordDecl> recordDefs) {
+        if (!(value instanceof VariantInstance)) {
+            return null
+        }
+        VariantInstance instance = value as VariantInstance
+        VariantRuntimeInfo info = activeVariants[instance.variant]
+        if (!info) {
+            return null
+        }
+        if (pattern.typeName && pattern.typeName != info.sumTypeName) {
+            return null
+        }
+        if (info.sumTypeName != instance.sumType || pattern.variantName != instance.variant) {
+            return null
+        }
+        if (pattern.fields.size() != instance.values.size()) {
+            return null
+        }
+        Map<String, Object> bindings = [:]
+        for (int i = 0; i < pattern.fields.size(); i++) {
+            Pattern child = pattern.fields[i]
+            Object fieldValue = instance.values[i]
+            Map<String, Object> nested = matchPattern(child, fieldValue, recordDefs)
+            if (nested == null) {
+                return null
+            }
+            bindings.putAll(nested)
+        }
+        return bindings
+    }
+
+    private Object literalValue(Expr expr) {
+        switch (expr) {
+            case IntLiteral:
+                return expr.value
+            case StringLiteral:
+                return expr.value
+            case BoolLiteral:
+                return expr.value
+            case NullLiteral:
+                return null
+            default:
+                throw new IllegalArgumentException("Invalid literal pattern")
+        }
+    }
 }
 
 class ReturnSignal extends RuntimeException {
@@ -373,5 +547,39 @@ class RecordInstance {
         this.name = name
         this.fields = fields
         this.immutableFields = immutableFields
+    }
+}
+
+class VariantRuntimeInfo {
+    final String sumTypeName
+    final String variantName
+    final List<String> fieldNames
+
+    VariantRuntimeInfo(String sumTypeName, String variantName, List<String> fieldNames) {
+        this.sumTypeName = sumTypeName
+        this.variantName = variantName
+        this.fieldNames = fieldNames ?: Collections.emptyList()
+    }
+}
+
+class VariantInstance {
+    final String sumType
+    final String variant
+    final List<Object> values
+
+    VariantInstance(String sumType, String variant, List<Object> values) {
+        this.sumType = sumType
+        this.variant = variant
+        this.values = values ?: Collections.emptyList()
+    }
+}
+
+class ClosureValue {
+    final LambdaExpr lambda
+    final Map<String, Object> captured
+
+    ClosureValue(LambdaExpr lambda, Map<String, Object> captured) {
+        this.lambda = lambda
+        this.captured = captured ?: [:]
     }
 }
